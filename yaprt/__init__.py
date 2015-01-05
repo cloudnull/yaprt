@@ -1,0 +1,364 @@
+# Copyright 2014, Rackspace US, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# (c) 2014, Kevin Carter <kevin.carter@rackspace.com>
+
+import os
+
+
+__author__ = "Kevin Carter"
+__contact__ = "Kevin Carter"
+__email__ = "kevin.carter@rackspace.com"
+__copyright__ = "2014 All Rights Reserved"
+__license__ = "Apache2"
+__date__ = "2014-12-25"
+__version__ = "0.0.1"
+__status__ = "Production"
+__appname__ = "yaprt"
+__description__ = 'Repository builder for python source code'
+__url__ = 'https://github.com/cloudnull/yaprt.git'
+
+
+# Requirements files types is a list of tuples that search for an online
+# requirements files and where to file the found items. The tuple will be
+# (TYPE, 'file name'). The type should directly correspond to a dict in
+# PYTHON_PACKAGES
+REQUIREMENTS_FILE_TYPES = [
+    ('base_requirements', 'requirements.txt'),
+    ('base_requirements', 'global-requirements.txt'),
+    ('base_requirements', 'global_requirements.txt'),
+    ('test_requirements', 'test-requirements.txt'),
+    ('test_requirements', 'test_requirements.txt'),
+    ('dev_requirements', 'dev-requirements.txt'),
+    ('dev_requirements', 'dev_requirements.txt')
+]
+
+
+# Templates for online git repositories that we scan through in order to
+# discover requirements files and installable python packages.
+GIT_REQUIREMENTS_MAP = {
+    'github': 'https://raw.githubusercontent.com/%(path)s/%(branch)s/%(file)s'
+}
+
+
+ARGUMENTS_DICT = {
+    'shared_args': {
+        'build_output': {
+            'commands': [
+                '--build-output'
+            ],
+            'help': 'Path to the location where the built Python package'
+                    ' files will be stored.',
+            'required': True
+        },
+        'build_dir': {
+            'commands': [
+                '--build-dir'
+            ],
+            'help': 'Path to temporary build directory. If unset a auto'
+                    ' generated temporary directory will be used.',
+            'default': None
+        },
+        'report_file': {
+            'commands': [
+                '--report-file'
+            ],
+            'help': 'Report json file. Default: %(default)s',
+            'default': os.path.join(
+                os.getenv('HOME'),
+                'repo-requirements.json'
+            )
+        },
+        'link_dir': {
+            'commands': [
+                '--link-dir'
+            ],
+            'help': 'Path to the build links for all built wheels.',
+            'default': None
+        },
+        'repo_accounts': {
+            'commands': [
+                '--repo-accounts'
+            ],
+            'nargs': '+',
+            'help': 'User or Organization root directory to online'
+                    ' repository to build from. This is presently ONLY'
+                    ' supportable on github and can be any user or'
+                    ' organization on github to scan through and build'
+                    ' python wheels for.',
+            'default': list()
+        },
+        'full_repos': {
+            'commands': [
+                '--full-repos'
+            ],
+            'nargs': '+',
+            'help': 'Full URL path to a specific repo to build packages'
+                    ' for.',
+            'default': list()
+        },
+        'git_install_repos': {
+            'commands': [
+                '--git-install-repos'
+            ],
+            'nargs': '+',
+            'help': 'Full git install url with "branch/tag" within it.',
+            'default': list()
+        },
+        'git_username': {
+            'commands': [
+                '-u',
+                '--git-username'
+            ],
+            'help': 'Username for a github account.',
+            'metavar': '[STR]',
+            'default': None
+        },
+        'git_password': {
+            'commands': [
+                '-p',
+                '--git-password'
+            ],
+            'help': 'Passowrd for a github account.',
+            'metavar': '[STR]',
+            'default': None
+        },
+        'git_repo_path': {
+            'commands': [
+                '--git-repo-path'
+            ],
+            'help': 'Path to where to store all of the git repositories.',
+            'required': True
+        }
+    },
+    'optional_args': {
+        'mutually_exclusive': {
+            'ops': {
+                'text': 'Logging and STDOUT options',
+                'required': False,
+                'group': [
+                    'quiet',
+                    'debug'
+                ]
+            }
+        },
+        'quiet': {
+            'commands': [
+                '--quiet'
+            ],
+            'help': 'Enables quiet mode, this disables all stdout',
+            'action': 'store_true',
+            'default': False
+        },
+        'debug': {
+            'commands': [
+                '--debug'
+            ],
+            'help': 'Enable debug mode',
+            'action': 'store_true',
+            'default': False
+        }
+    },
+    'subparsed_args': {
+        'create-report': {
+            'help': 'Create repository for all Openstack requirements.',
+            'shared_args': [
+                'report_file',
+                'full_repos',
+                'git_install_repos',
+                'repo_accounts',
+                'git_username',
+                'git_password'
+            ],
+            'optional_args': {
+                'groups': {
+                    'github_auth': {
+                        'text': 'Optional authentication details for github',
+                        'required': False,
+                        'group': [
+                            'git_username',
+                            'git_password'
+                        ]
+                    },
+                    'report_options': {
+                        'text': 'Optional report options',
+                        'required': False,
+                        'group': [
+                            'report_file',
+                            'full_repos',
+                            'git_install_repos',
+                            'repo_accounts',
+                            'packages'
+                        ]
+                    }
+                },
+                'packages': {
+                    'commands': [
+                        '--packages'
+                    ],
+                    'nargs': '+',
+                    'help': 'Name of the specific package to build into a'
+                            ' report.',
+                    'default': list()
+                }
+            }
+        },
+        'build-wheels': {
+            'help': 'Build all of the wheels from a json report.',
+            'shared_args': [
+                'report_file',
+                'build_output',
+                'build_dir',
+                'link_dir'
+            ],
+            'optional_args': {
+                'groups': {
+                    'github_auth': {
+                        'text': 'Build options',
+                        'required': False,
+                        'group': [
+                            'build_releases',
+                            'build_branches',
+                            'build_requirements',
+                            'build_packages',
+                            'build_output',
+                            'build_dir'
+                        ]
+                    },
+                    'storage_options': {
+                        'text': 'Storage options',
+                        'required': False,
+                        'group': [
+                            'link_dir',
+                            'storage_pool'
+                        ]
+                    },
+                    'pip_options': {
+                        'text': 'Pip options',
+                        'required': False,
+                        'group': [
+                            'pip_index',
+                            'pip_extra_index',
+                            'pip_no_deps',
+                            'pip_no_index',
+                            'pip_extra_link_dirs'
+                        ]
+                    }
+                },
+                'duplicate_handling': {
+                    'commands': [
+                        '--duplicate-handling'
+                    ],
+                    'help': 'When processing dependent packages choose how to'
+                            ' handle the event of a duplicate package name'
+                            ' with varying dependencies.',
+                    'default': 'max',
+                    'choices': ['max', 'min']
+                },
+                'pip_index': {
+                    'commands': [
+                        '--pip-index'
+                    ],
+                    'help': 'Index URL to override the main pip index.',
+                    'default': None
+                },
+                'pip_extra_index': {
+                    'commands': [
+                        '--pip-extra-index'
+                    ],
+                    'help': 'Extra Index URL to search.',
+                    'default': None
+                },
+                'pip_no_deps': {
+                    'commands': [
+                        '--pip-no-deps'
+                    ],
+                    'help': 'Do not build package dependencies.',
+                    'action': 'store_true',
+                    'default': False
+                },
+                'pip_no_index': {
+                    'commands': [
+                        '--pip-no-index'
+                    ],
+                    'help': 'Ignore package index (only looking at'
+                            ' --link-dir URLs instead).',
+                    'action': 'store_true',
+                    'default': False
+                },
+                'pip_extra_link_dirs': {
+                    'commands': [
+                        '--pip-extra-link-dirs'
+                    ],
+                    'nargs': '+',
+                    'help': 'Path to source additional links from.',
+                    'default': None
+                },
+                'storage_pool': {
+                    'commands': [
+                        '--storage-pool'
+                    ],
+                    'help': 'Path to the location where the built Python'
+                            ' package files will be stored. This will be built'
+                            ' out in simple Pypi index style.',
+                    'required': True
+                },
+                'build_releases': {
+                    'commands': [
+                        '--build-releases'
+                    ],
+                    'help': 'Enable the building of wheels for all release'
+                            ' tags from a prebuilt report',
+                    'action': 'store_true',
+                    'default': False
+                },
+                'build_branches': {
+                    'commands': [
+                        '--build-branches'
+                    ],
+                    'help': 'Enable the building of wheels for all branches in'
+                            ' a prebuilt report',
+                    'action': 'store_true',
+                    'default': False
+                },
+                'build_packages': {
+                    'commands': [
+                        '--build-packages'
+                    ],
+                    'nargs': '+',
+                    'help': 'Full name / path of a package to be built as a'
+                            ' wheel. This can be any package name acceptable'
+                            ' by pip',
+                    'default': list()
+                },
+                'build_requirements': {
+                    'commands': [
+                        '--build-requirements'
+                    ],
+                    'help': 'Enable the building of wheels for all'
+                            ' requirements in a prebuilt report.',
+                    'action': 'store_true',
+                    'default': False
+                }
+            }
+        },
+        'store-repos': {
+            'help': 'Store all of the git source code in a given location.',
+            'shared_args': [
+                'report_file',
+                'git_repo_path'
+            ]
+        }
+    }
+}

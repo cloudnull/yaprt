@@ -1,0 +1,2 @@
+cloudlib>=0.3.0
+requests>=2.4.3
