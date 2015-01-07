@@ -41,6 +41,8 @@ class GithubRepoPorcess(object):
         else:
             self.auth = None
 
+        self.pip_install = 'git+%s@%s'
+
     @utils.retry(Exception)
     def _process_request(self, url):
         """Perform an http request.
@@ -51,7 +53,7 @@ class GithubRepoPorcess(object):
         """
         content = requests.get(url, auth=self.auth)
         if content.status_code >= 300:
-            raise SystemExit(content.content)
+            raise utils.AError(content.content)
         else:
             return content.json()
 
@@ -83,6 +85,49 @@ class GithubRepoPorcess(object):
         else:
             return self._process_request(url=repo_access.__dict__['url'])
 
+    def _process_tag_releases(self, repo, base_repo, item, value, tags_url):
+        releases = list()
+        for tag in self._process_request(url=tags_url):
+            LOG.debug(
+                'Discovered release %s for repo %s',
+                tag['name'],
+                repo['name']
+            )
+            tag_setup = item.copy()
+            tag_setup['file'] = 'setup.py'
+            tag_setup['branch'] = tag['name']
+            if self._check_setup(setup_path=value % tag_setup):
+                releases.append(
+                    self.pip_install % (base_repo['git_url'], tag['name'])
+                )
+        else:
+            return releases
+
+    def _process_branch_releases(self, repo, base_repo, branches,
+                                 base_branches, item,  value):
+        for branch in branches:
+            LOG.debug(
+                'Discovered branch "%s" for repo "%s"',
+                branch['name'],
+                repo['name']
+            )
+            item['branch'] = branch['name']
+            branch_data = base_branches[branch['name']] = dict()
+            branch_reqs = branch_data['requirements'] = dict()
+            for type_name, file_name in orb.REQUIREMENTS_FILE_TYPES:
+                item['file'] = file_name
+                _requirements = self._check_requirements(value % item)
+                LOG.debug('Found requirements: %s', _requirements)
+                if _requirements:
+                    branch_reqs[type_name] = sorted(_requirements)
+
+            setup_item = item.copy()
+            setup_item['file'] = 'setup.py'
+            if self._check_setup(setup_path=value % setup_item):
+                branch_data['pip_install_url'] = self.pip_install % (
+                    base_repo['git_url'], branch['name']
+                )
+
     def _process_repo(self, repo, set_branch=None):
         _repo = self.requirements[repo['name']] = dict()
         _repo['git_url'] = repo['git_url']
@@ -97,7 +142,6 @@ class GithubRepoPorcess(object):
         if not repo['url'].endswith('/'):
             repo['url'] = '%s/' % repo['url']
 
-        pip_install = 'git+%s@%s'
         branches_url = urlparse.urljoin(repo['url'], 'branches')
         for key, value in orb.GIT_REQUIREMENTS_MAP.items():
             if key in repo['url']:
@@ -106,42 +150,15 @@ class GithubRepoPorcess(object):
                 else:
                     branches = self._process_request(url=branches_url)
                     tags_url = urlparse.urljoin(repo['url'], 'tags')
-                    for tag in self._process_request(url=tags_url):
-                        LOG.debug(
-                            'Discovered release %s for repo %s',
-                            tag['name'],
-                            repo['name']
+                    _releases.extend(
+                        self._process_tag_releases(
+                            repo, _repo, item, value, tags_url
                         )
-                        tag_setup = item.copy()
-                        tag_setup['file'] = 'setup.py'
-                        tag_setup['branch'] = tag['name']
-                        if self._check_setup(setup_path=value % tag_setup):
-                            _releases.append(
-                                pip_install % (_repo['git_url'], tag['name'])
-                            )
-
-                for branch in branches:
-                    LOG.debug(
-                        'Discovered branch "%s" for repo "%s"',
-                        branch['name'],
-                        repo['name']
                     )
-                    item['branch'] = branch['name']
-                    branch_data = _branches[branch['name']] = dict()
-                    branch_reqs = branch_data['requirements'] = dict()
-                    for type_name, file_name in orb.REQUIREMENTS_FILE_TYPES:
-                        item['file'] = file_name
-                        _requirements = self._check_requirements(value % item)
-                        LOG.debug('Found requirements: %s', _requirements)
-                        if _requirements:
-                            branch_reqs[type_name] = sorted(_requirements)
 
-                    setup_item = item.copy()
-                    setup_item['file'] = 'setup.py'
-                    if self._check_setup(setup_path=value % setup_item):
-                        branch_data['pip_install_url'] = pip_install % (
-                            _repo['git_url'], branch['name']
-                        )
+                self._process_branch_releases(
+                    repo, _repo, branches, _branches, item, value
+                )
 
                 break
 
@@ -169,6 +186,10 @@ class GithubRepoPorcess(object):
                 'Found setup.py [ %s ]', setup_path
             )
             return True
+        elif req.status_code >= 500:
+            raise utils.AError(
+                'Connection return information resulted in a failure.'
+            )
 
     @staticmethod
     @utils.retry(Exception)
@@ -189,6 +210,10 @@ class GithubRepoPorcess(object):
                 if i
                 if not i.startswith('#')
             ]
+        elif req.status_code >= 500:
+            raise utils.AError(
+                'Connection return information resulted in a failure.'
+            )
 
     def process_packages(self, packages):
         pkgs = self.requirements['_requirements'] = dict()

@@ -20,14 +20,18 @@ import sys
 
 possible_topdir = os.path.normpath(
     os.path.join(
-        os.path.abspath(sys.argv[0]),
+        os.path.abspath(
+            sys.argv[0]
+        ),
         os.pardir,
         os.pardir
     )
 )
 
 base_path = os.path.join(
-    possible_topdir, 'yaprt', '__init__.py'
+    possible_topdir,
+    'yaprt',
+    '__init__.py'
 )
 if os.path.exists(base_path):
     sys.path.insert(0, possible_topdir)

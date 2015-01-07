@@ -34,7 +34,9 @@ This tool can:
       used to modify or add to the build requirements. When the wheels are
       built the structure will consist of the repository directory indexing,
       a links directory, and an option "release" directory.
-    * Store the git sources from the report into a specific location.
+    * Store the git sources from the report into a specific location. If the
+      source code already exists within the targeted location the git repo will
+      be updated with any changes that may have been made upstream.
 """
 
 
@@ -64,7 +66,7 @@ def preload_for_main():
     """Return arguments dict, sinner bol, and logging object."""
     args = _arguments()
 
-    # set bollion objects for spinner and stream logging.
+    # set boolean objects for spinner and stream logging.
     if args['debug'] is True:
         run_spinner = False
         stream_logs = True

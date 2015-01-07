@@ -141,18 +141,6 @@ def remove_dirs(directory):
             pass
 
 
-class ChangeDir(object):
-    def __init__(self, target_dir):
-        self.target_dir = target_dir
-        self.cwd = os.getcwd()
-
-    def __enter__(self):
-        os.chdir(self.target_dir)
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        os.chdir(self.cwd)
-
-
 def hash_return(local_file, hash_type='sha256'):
     """Return the hash of a local file object.
 
@@ -179,3 +167,44 @@ def hash_return(local_file, hash_type='sha256'):
                     hash_function.update(chk.encode('utf-8'))
 
         return hash_function.hexdigest()
+
+
+class ChangeDir(object):
+    def __init__(self, target_dir):
+        self.target_dir = target_dir
+        self.cwd = os.getcwd()
+
+    def __enter__(self):
+        os.chdir(self.target_dir)
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        os.chdir(self.cwd)
+
+
+class _BaseException(Exception):
+    def __init__(self, message):
+        if isinstance(message, (tuple, list)):
+            if len(message) > 1:
+                _message = message
+                format_message = _message.pop(0)
+                try:
+                    message = format_message % tuple(_message)
+                except TypeError as exp:
+                    message = (
+                        'The exception message was not formatting correctly.'
+                        ' Error: [ %s ]. This was the original'
+                        ' message: "%s".' % (exp, message)
+                    )
+            else:
+                message = message[0]
+        elif isinstance(message, str):
+            message = message
+
+        super(_BaseException, self).__init__(message)
+        LOG.error(self.message)
+
+
+class AError(_BaseException):
+    """An error has occurred."""
+
+    pass
