@@ -22,11 +22,36 @@ from distutils import version
 from cloudlib import logger
 from cloudlib import shell
 
+from yaprt import packaging_report as pkgr
 from yaprt import utils
 
 
 LOG = logger.getLogger('repo_builder')
 VERSION_DESCRIPTORS = ['>=', '<=', '==', '<', '>', '!=']
+
+
+def build_wheels(args):
+    report = pkgr.read_report(args=args)
+    wb = WheelBuilder(user_args=args)
+    wb.get_requirements(report=report)
+    if args['build_packages']:
+        wb.requirements.extend(args['build_packages'])
+        wb.requirements = list(set(wb.requirements))
+
+    wb.get_branches(report=report)
+    wb.get_releases(report=report)
+
+    if args['build_requirements'] or args['build_packages']:
+        LOG.info('Found requirements: %d', len(wb.requirements))
+        wb.build_wheels(packages=wb.requirements)
+
+    if args['build_branches']:
+        LOG.info('Found branch packages: %d', len(wb.branches))
+        wb.build_wheels(packages=wb.branches)
+
+    if args['build_releases']:
+        LOG.info('Found releases: %d', len(wb.releases))
+        wb.build_wheels(packages=wb.releases, log_build=True)
 
 
 class WheelBuilder(object):
@@ -228,7 +253,8 @@ class WheelBuilder(object):
         else:
             self.releases = sorted(list(set(self.releases)))
 
-    def _copy_file(self, dst_file, src_file):
+    @staticmethod
+    def _copy_file(dst_file, src_file):
         ## TODO(kevin)  This should be uncommented to provide a hash on the
         ## TODO(kevin)  filename, but NGINX escapes "#sha256=" as
         ## TODO(kevin)  "%23sha256%3d" and that makes the browser/pip angry

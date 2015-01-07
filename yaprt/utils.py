@@ -87,6 +87,20 @@ def copy_file(src, dst):
                     open_dst.write(buf)
 
 
+def get_abs_path(file_name):
+    return os.path.abspath(os.path.expanduser(file_name))
+
+
+def get_items_from_file(file_name):
+    items = list()
+    with open(get_abs_path(file_name=file_name), 'rb') as f:
+        for item in [i.strip() for i in f.readlines()]:
+            # Split on whitespace and strip both ' and " from the sting.
+            items.extend([i.strip("""\'\"""") for i in item.split()])
+        else:
+            return items
+
+
 def get_file_names(path):
     """Return a list of all files in the vars/repo_packages directory.
 

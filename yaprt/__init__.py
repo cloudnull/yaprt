@@ -54,22 +54,6 @@ GIT_REQUIREMENTS_MAP = {
 
 ARGUMENTS_DICT = {
     'shared_args': {
-        'build_output': {
-            'commands': [
-                '--build-output'
-            ],
-            'help': 'Path to the location where the built Python package'
-                    ' files will be stored.',
-            'required': True
-        },
-        'build_dir': {
-            'commands': [
-                '--build-dir'
-            ],
-            'help': 'Path to temporary build directory. If unset a auto'
-                    ' generated temporary directory will be used.',
-            'default': None
-        },
         'report_file': {
             'commands': [
                 '--report-file'
@@ -79,42 +63,6 @@ ARGUMENTS_DICT = {
                 os.getenv('HOME'),
                 'repo-requirements.json'
             )
-        },
-        'link_dir': {
-            'commands': [
-                '--link-dir'
-            ],
-            'help': 'Path to the build links for all built wheels.',
-            'default': None
-        },
-        'repo_accounts': {
-            'commands': [
-                '--repo-accounts'
-            ],
-            'nargs': '+',
-            'help': 'User or Organization root directory to online'
-                    ' repository to build from. This is presently ONLY'
-                    ' supportable on github and can be any user or'
-                    ' organization on github to scan through and build'
-                    ' python wheels for.',
-            'default': list()
-        },
-        'full_repos': {
-            'commands': [
-                '--full-repos'
-            ],
-            'nargs': '+',
-            'help': 'Full URL path to a specific repo to build packages'
-                    ' for.',
-            'default': list()
-        },
-        'git_install_repos': {
-            'commands': [
-                '--git-install-repos'
-            ],
-            'nargs': '+',
-            'help': 'Full git install url with "branch/tag" within it.',
-            'default': list()
         },
         'git_username': {
             'commands': [
@@ -175,9 +123,6 @@ ARGUMENTS_DICT = {
             'help': 'Create repository for all Openstack requirements.',
             'shared_args': [
                 'report_file',
-                'full_repos',
-                'git_install_repos',
-                'repo_accounts',
                 'git_username',
                 'git_password'
             ],
@@ -211,16 +156,61 @@ ARGUMENTS_DICT = {
                     'help': 'Name of the specific package to build into a'
                             ' report.',
                     'default': list()
+                },
+                'packages_file': {
+                    'commands': [
+                        '--packages-file'
+                    ],
+                    'help': 'Path to a file that contains a list of packages'
+                            ' to build. This file should be, one package per'
+                            ' line or separated by a white space.',
+                    'default': None
+                },
+                'repo_accounts': {
+                    'commands': [
+                        '--repo-accounts'
+                    ],
+                    'nargs': '+',
+                    'help': 'User or Organization root directory to online'
+                            ' repository to build from. This is presently ONLY'
+                            ' supportable on github and can be any user or'
+                            ' organization on github to scan through and build'
+                            ' python wheels for.',
+                    'default': list()
+                },
+                'full_repos': {
+                    'commands': [
+                        '--full-repos'
+                    ],
+                    'nargs': '+',
+                    'help': 'Full URL path to a specific repo to build packages'
+                            ' for.',
+                    'default': list()
+                },
+                'git_install_repos': {
+                    'commands': [
+                        '--git-install-repos'
+                    ],
+                    'nargs': '+',
+                    'help': 'Full git install url with "branch/tag" within it.',
+                    'default': list()
+                },
+                'git_install_repos_file': {
+                    'commands': [
+                        '--git-install-repos-file'
+                    ],
+                    'help': 'Path to a file that contains a list of git repos,'
+                            ' with branch/tag, which will be built. This file'
+                            ' should be, one package per line or separated by'
+                            ' a white space',
+                    'default': None
                 }
             }
         },
         'build-wheels': {
             'help': 'Build all of the wheels from a json report.',
             'shared_args': [
-                'report_file',
-                'build_output',
-                'build_dir',
-                'link_dir'
+                'report_file'
             ],
             'optional_args': {
                 'groups': {
@@ -255,6 +245,30 @@ ARGUMENTS_DICT = {
                             'pip_extra_link_dirs'
                         ]
                     }
+                },
+                'link_dir': {
+                    'commands': [
+                        '--link-dir'
+                    ],
+                    'help': 'Path to the build links for all built wheels.',
+                    'default': None
+                },
+                'build_output': {
+                    'commands': [
+                        '--build-output'
+                    ],
+                    'help': 'Path to the location where the built Python'
+                            ' package files will be stored.',
+                    'required': True
+                },
+                'build_dir': {
+                    'commands': [
+                        '--build-dir'
+                    ],
+                    'help': 'Path to temporary build directory. If unset a'
+                            ' auto generated temporary directory will be'
+                            ' used.',
+                    'default': None
                 },
                 'duplicate_handling': {
                     'commands': [

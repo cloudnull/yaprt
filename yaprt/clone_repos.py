@@ -19,10 +19,16 @@ import os
 from cloudlib import logger
 from cloudlib import shell
 
+from yaprt import packaging_report as pkgr
 from yaprt import utils
 
 
 LOG = logger.getLogger('repo_builder')
+
+
+def store_repos(args):
+    cgr = CloneGitRepos(user_args=args)
+    cgr.store_git_repos(report=pkgr.read_report(args=args))
 
 
 class CloneGitRepos():
