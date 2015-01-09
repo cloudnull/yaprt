@@ -83,15 +83,23 @@ def git_pip_link_parse(repo):
     :type repo: ``str``
     :returns: ``tuple``
     """
-    _git_url = repo.split('+')[1]
+    LOG.debug(repo)
+    _git_url = repo.split('+')
+    if len(_git_url) >= 2:
+        _git_url = _git_url[1]
+    else:
+        _git_url = _git_url[0]
+
     url, branch = _git_url.split('@')
     html_url = os.path.splitext(url)[0].rstrip('/')
     name = os.path.basename(os.path.splitext(url)[0].rstrip('/'))
     _branch = branch.split('#')
     branch = _branch[0]
     if len(_branch) > 1:
-        sub_path = _branch[1].split('subdirectory=')[1].split('&')[0]
-        html_url = '%s/%s' % (html_url, sub_path)
+        if 'subdirectory' in branch:
+            sub_path = _branch[1].split('subdirectory=')[1].split('&')[0]
+            html_url = '%s/%s' % (html_url, sub_path)
+
     return name.lower(), branch, html_url, url
 
 

@@ -37,7 +37,9 @@ This tool can:
     * Store the git sources from the report into a specific location. If the
       source code already exists within the targeted location the git repo will
       be updated with any changes that may have been made upstream.
-    * Create an html index for all files within recursively within a directory.
+    * Create a static html index for all files within a directory. Because
+      this is a recursive function, each index will be created within the
+      directory and only reference files within that directory.
 """
 
 
