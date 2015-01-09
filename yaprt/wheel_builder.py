@@ -315,15 +315,16 @@ class WheelBuilder(object):
         with utils.ChangeDir(self.args['link_dir']):
             # Create the link using the relative path
             link_path = os.path.join(self.args['link_dir'], wheel_name)
-            try:
-                # If the link is broken remove it
-                if not os.path.exists(os.readlink(link_path)):
-                    os.remove(link_path)
-            except OSError as exp:
-                if exp.errno == 2:
-                    pass
-                else:
-                    raise exp
+            if os.path.exists(link_path):
+                try:
+                    # If the link is broken remove it
+                    if not os.readlink(link_path):
+                        os.remove(link_path)
+                except OSError as exp:
+                    if exp.errno == 2:
+                        pass
+                    else:
+                        raise exp
 
             if not os.path.islink(link_path):
                 # Create the symlink
@@ -332,7 +333,7 @@ class WheelBuilder(object):
                     os.path.join(self.args['link_dir'], wheel_name)
                 )
 
-    def build_wheels(self, packages, log_build=False):
+    def build_wheels(self, packages):
         try:
             for package in packages:
                 self._build_wheels(package=package)

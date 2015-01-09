@@ -374,6 +374,20 @@ ARGUMENTS_DICT = {
                 'report_file',
                 'git_repo_path'
             ]
+        },
+        'create-html-indexes': {
+            'help': 'Create an HTML index file for all folders and files'
+                    ' recursively within a repo path.',
+            'optional_args': {
+                'repo_dir': {
+                    'commands': [
+                        '--repo-dir'
+                    ],
+                    'help': 'Path to the repository directory.',
+                    'required': True,
+                    'default': None
+                }
+            }
         }
     }
 }

@@ -37,6 +37,7 @@ This tool can:
     * Store the git sources from the report into a specific location. If the
       source code already exists within the targeted location the git repo will
       be updated with any changes that may have been made upstream.
+    * Create an html index for all files within recursively within a directory.
 """
 
 
@@ -47,6 +48,7 @@ from cloudlib import logger
 import yaprt
 from yaprt import clone_repos as clr
 from yaprt import packaging_report as pkgr
+from yaprt import utils
 from yaprt import wheel_builder
 
 
@@ -93,10 +95,16 @@ def main():
     with indicator.Spinner(run=run_spinner):
         if args['parsed_command'] == 'create-report':
             pkgr.create_report(args=args)
+        elif args['parsed_command'] == 'store-repos':
+            clr.store_repos(args=args)
         elif args['parsed_command'] == 'build-wheels':
             wheel_builder.build_wheels(args=args)
         elif args['parsed_command'] == 'store-repos':
             clr.store_repos(args=args)
+        else:
+            raise utils.AError(
+                'No known parsed command, Current Args: %s', args
+            )
 
 if __name__ == '__main__':
     main()

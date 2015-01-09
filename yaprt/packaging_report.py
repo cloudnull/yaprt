@@ -93,6 +93,15 @@ def create_report(args):
 
 
 def read_report(args):
+    """Return a dictionary from a read json file.
+
+    If there is an issue with the loaded JSON file a blank dictionary will be
+    returned.
+
+    :param args: Parsed arguments in dictionary format.
+    :type args: ``dict``
+    :return: ``dict``
+    """
     try:
         report_file = utils.get_abs_path(file_name=args['report_file'])
         with open(report_file, 'rb') as f:
