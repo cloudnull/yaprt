@@ -51,7 +51,7 @@ def build_wheels(args):
 
     if args['build_releases']:
         LOG.info('Found releases: %d', len(wb.releases))
-        wb.build_wheels(packages=wb.releases, log_build=True)
+        wb.build_wheels(packages=wb.releases)
 
 
 class WheelBuilder(object):
@@ -287,6 +287,8 @@ class WheelBuilder(object):
             )
 
             # Ensure the directory exists
+            LOG.debug(dst_wheel_file)
+            LOG.debug(os.path.dirname(dst_wheel_file))
             self.shell_cmds.mkdir_p(path=os.path.dirname(dst_wheel_file))
 
             # Create destination file

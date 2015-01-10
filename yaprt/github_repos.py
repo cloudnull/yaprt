@@ -47,6 +47,10 @@ class GithubRepoPorcess(object):
     def _process_request(self, url):
         """Perform an http request.
 
+        If the connection being made to the URL is returned with a 500 error
+        this method would raise an exception will will allow the method to
+        retry.
+
         :param url: full url to query
         :type url: ``str``
         :returns: ``dict``
@@ -62,7 +66,7 @@ class GithubRepoPorcess(object):
 
         :param repo_access: requests head object.
         :type repo_access: ``str``
-        :return: ``list``
+        :returns: ``list``
         """
         # always pull the headers
         headers = repo_access.__dict__.get('headers')
@@ -85,50 +89,98 @@ class GithubRepoPorcess(object):
         else:
             return self._process_request(url=repo_access.__dict__['url'])
 
-    def _process_tag_releases(self, repo, base_repo, item, value, tags_url):
+    def _process_tag_releases(self, name, git_url, repo_data,
+                              string_replacement, tags_url):
+        """Returns a list of releases from a given repository.
+
+        :param name: Name of a repository.
+        :type name: ``str``
+        :param git_url: URL for the git repo.
+        :type git_url: ``str``
+        :param string_replacement: String used to replace items within for
+                                   setup files.
+        :type string_replacement: ``str``
+        :param repo_data: Repository data
+        :type repo_data: ``dict``
+        :param tags_url: URL for the git repo tag.
+        :type tags_url: ``str``
+        :returns: ``list``
+        """
         releases = list()
         for tag in self._process_request(url=tags_url):
             LOG.debug(
                 'Discovered release %s for repo %s',
                 tag['name'],
-                repo['name']
+                name
             )
-            tag_setup = item.copy()
-            tag_setup['file'] = 'setup.py'
-            tag_setup['branch'] = tag['name']
-            if self._check_setup(setup_path=value % tag_setup):
+            repo_data['file'] = 'setup.py'
+            repo_data['branch'] = tag['name']
+            if self._check_setup(setup_path=string_replacement % repo_data):
                 releases.append(
-                    self.pip_install % (base_repo['git_url'], tag['name'])
+                    self.pip_install % (git_url, tag['name'])
                 )
         else:
             return releases
 
-    def _process_branch_releases(self, repo, base_repo, branches,
-                                 base_branches, item,  value):
+    def _process_branch_releases(self, name, git_url, branches, repo_data,
+                                 base_branches,  string_replacement):
+        """Parse and populate requirements from within branches.
+
+        This method will populate the dictionary items that are within the
+        ``base_branches``. While there is nothing being returned within this
+        method, the modifications made to the base branches will be available
+        to the calling method.
+
+        :param name: Name of a repository.
+        :type name: ``str``
+        :param git_url: URL for the git repo.
+        :type git_url: ``str``
+        :param branches: List of all branches in dictionary format
+        :type branches: ``list``
+        :param repo_data: Repository data
+        :type repo_data: ``dict``
+        :param base_branches: Dictionary items of branches that will be
+                              populated with information parsed within this
+                              method.
+        :type base_branches: ``dict``
+        :param string_replacement: String used to replace items within for
+                                   setup files.
+        :type string_replacement: ``str``
+        """
         for branch in branches:
             LOG.debug(
                 'Discovered branch "%s" for repo "%s"',
                 branch['name'],
-                repo['name']
+                name
             )
-            item['branch'] = branch['name']
+            repo_data['branch'] = branch['name']
             branch_data = base_branches[branch['name']] = dict()
             branch_reqs = branch_data['requirements'] = dict()
             for type_name, file_name in orb.REQUIREMENTS_FILE_TYPES:
-                item['file'] = file_name
-                _requirements = self._check_requirements(value % item)
+                repo_data['file'] = file_name
+                _requirements = self._check_requirements(
+                    string_replacement % repo_data
+                )
                 LOG.debug('Found requirements: %s', _requirements)
                 if _requirements:
                     branch_reqs[type_name] = sorted(_requirements)
 
-            setup_item = item.copy()
+            setup_item = repo_data.copy()
             setup_item['file'] = 'setup.py'
-            if self._check_setup(setup_path=value % setup_item):
+            if self._check_setup(setup_path=string_replacement % setup_item):
                 branch_data['pip_install_url'] = self.pip_install % (
-                    base_repo['git_url'], branch['name']
+                    git_url,
+                    branch['name']
                 )
 
     def _process_repo(self, repo, set_branch=None):
+        """Parse a given repo and populate the requirements dictionary.
+
+        :param repo: Dictionary object containing git repo data.
+        :type repo: ``dict``
+        :param set_branch: Set the branch to a given branch
+        :type set_branch: ``str`` or ``None``
+        """
         _repo = self.requirements[repo['name']] = dict()
         _repo['git_url'] = repo['git_url']
         _branches = _repo['branches'] = dict()
@@ -152,12 +204,21 @@ class GithubRepoPorcess(object):
                     tags_url = urlparse.urljoin(repo['url'], 'tags')
                     _releases.extend(
                         self._process_tag_releases(
-                            repo, _repo, item, value, tags_url
+                            name=repo['name'],
+                            git_url=_repo['git_url'],
+                            repo_data=item.copy(),
+                            string_replacement=value,
+                            tags_url=tags_url
                         )
                     )
 
                 self._process_branch_releases(
-                    repo, _repo, branches, _branches, item, value
+                    name=repo['name'],
+                    git_url=_repo['git_url'],
+                    repo_data=item,
+                    string_replacement=value,
+                    branches=branches,
+                    base_branches=_branches
                 )
 
                 break
@@ -167,7 +228,6 @@ class GithubRepoPorcess(object):
 
         :param repos: list of github repositories
         :type repos: ``list``
-        :return: ``list``
         """
         for repo in repos:
             self._process_repo(repo=repo)
@@ -175,6 +235,18 @@ class GithubRepoPorcess(object):
     @staticmethod
     @utils.retry(Exception)
     def _check_setup(setup_path):
+        """Return ``True`` if a setup file is found within the git url.
+
+        This method is a static method and will retry on any exceptions.
+
+        If the connection being made to the URL is returned with a 500 error
+        this method would raise an exception will will allow the method to
+        retry.
+
+        :param setup_path: URL to a prospective setup file.
+        :type setup_path: ``str``
+        :return: ``bol``
+        """
         req = requests.head(setup_path)
         LOG.debug(
             'Return code [ %s ] while looking for [ %s ]',
@@ -190,10 +262,26 @@ class GithubRepoPorcess(object):
             raise utils.AError(
                 'Connection return information resulted in a failure.'
             )
+        else:
+            return False
 
     @staticmethod
     @utils.retry(Exception)
     def _check_requirements(requirements_path):
+        """Return a list of items.
+
+        The returned list will contain only items with content. If an item
+        begins with a "#" it will be filtered.
+
+        This method is a static method and will retry on any exceptions.
+
+        If the connection being made to the URL is returned with a 500 error
+        this method would raise an exception will will allow the method to
+        retry.
+
+        :param requirements_path:
+        :returns: ``list``
+        """
         req = requests.head(requirements_path)
         LOG.debug(
             'Return code [ %s ] while looking for [ %s ]',
@@ -214,21 +302,45 @@ class GithubRepoPorcess(object):
             raise utils.AError(
                 'Connection return information resulted in a failure.'
             )
+        else:
+            return list()
 
     def process_packages(self, packages):
-        pkgs = self.requirements['_requirements'] = dict()
+        """If packages were defined  by the user add them to the requirements.
+
+        These "packages" will be added within the the requirements as a
+        special item which should eliminate collisions.
+
+        :param packages: list of packages that were user defined.
+        :type packages: ``list``
+        :return:
+        """
+        pkgs = self.requirements['_requirements_'] = dict()
         branches = pkgs['branches'] = dict()
-        _master = branches['_master'] = dict()
+        _master = branches['_master_'] = dict()
         _requirements = _master['requirements'] = dict()
         _requirements['base_requirements'] = packages
 
     def process_repo(self, repo, branch=None):
+        """Process a given repository.
+
+        :param repo: Dictionary object containing git repo data.
+        :type repo: ``dict``
+        :param branch: Name of a given branch, if undefined this will default
+                       to ``None``.
+        :type branch: ``dict`` or ``None``
+        """
         self._process_repo(
             repo=repo,
             set_branch=branch
         )
 
     def process_repo_url(self, url):
+        """Process a given url for a github
+
+        :param url: Full url to the git api user / org / or repo.
+        :type url: ``str``
+        """
         self._process_repo(
             repo=self._process_request(url=url)
         )
@@ -240,7 +352,6 @@ class GithubRepoPorcess(object):
 
         :param url: Full url to the git api user / org / or repo.
         :type url: ``str``
-        :returns: ``dict``
         """
         github_repos = self._get_repos(
             repo_access=requests.head(url, auth=self.auth)
