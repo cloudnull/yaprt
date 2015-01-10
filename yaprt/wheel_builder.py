@@ -31,6 +31,11 @@ VERSION_DESCRIPTORS = ['>=', '<=', '==', '<', '>', '!=']
 
 
 def build_wheels(args):
+    """Work through the various wheels based on arguments.
+
+    :param args: User defined arguments.
+    :type args: ``dict``
+    """
     report = pkgr.read_report(args=args)
     wb = WheelBuilder(user_args=args)
     wb.get_requirements(report=report)
@@ -55,7 +60,27 @@ def build_wheels(args):
 
 
 class WheelBuilder(object):
+    """Build python wheel files.
+
+    Example options dict
+        >>> user_args = {
+        ...     'build_output': '/tmp/output_place',
+        ...     'build_dir': '/tmp/build_place',
+        ...     'pip_no_deps': True,
+        ...     'pip_no_index': True,
+        ...     'link_dir': '/var/www/repo',
+        ...     'debug': True,
+        ...     'duplicate_handling': 'max',
+        ...     'storage_pool': '/var/www/repo/storage'
+        ... }
+    """
     def __init__(self, user_args):
+        """Build python wheels based on a report or items within a report.
+
+        :param user_args: User defined arguments.
+        :type user_args: ``dict``
+        :return:
+        """
         self.args = user_args
         self.shell_cmds = shell.ShellCommands(
             log_name='repo_builder',
@@ -66,6 +91,23 @@ class WheelBuilder(object):
         self.releases = list()
 
     def _build_wheels(self, package):
+        """Create a python wheel.
+
+        The base command will timeout in 120 seconds and will create the wheels
+        within a defined build output directory, will allow external packages,
+        and will source the build output directory as the first link directory
+        to look through for already build wheels.
+
+        the argument options will enable no dependencies build, setting a build
+        directory otherwise a temporary directory will be used, setting an
+        additional link directory, setting extra link directories, changing the
+        defaul pip index URL, adding an extra pip index URL, and enabling
+        verbose mode.
+
+        :param package: Name of a particular package to build.
+        :type package: ``str``
+        :return:
+        """
         command = [
             'pip',
             'wheel',
@@ -73,7 +115,9 @@ class WheelBuilder(object):
             '120',
             '--wheel-dir',
             self.args['build_output'],
-            '--allow-all-external'
+            '--allow-all-external',
+            '--find-links',
+            self.args['build_output']
         ]
 
         if self.args['pip_no_deps']:
@@ -88,9 +132,6 @@ class WheelBuilder(object):
         else:
             build_dir = tempfile.mkstemp(prefix='orb_')
             command.extend(['--build', build_dir])
-
-        # Add the output wheel directory as a link source
-        command.extend(['--find-links', self.args['build_output']])
 
         if self.args['link_dir']:
             command.extend(['--find-links', self.args['link_dir']])
@@ -108,13 +149,13 @@ class WheelBuilder(object):
         if self.args['debug'] is True:
             command.append('--verbose')
 
-        command.append('"%s"' % package)
+        command.append(utils.stip_quotes(item=package))
         try:
-            stdout, success = self.shell_cmds.run_command(
+            output, success = self.shell_cmds.run_command(
                 command=' '.join(command)
             )
             if not success:
-                raise OSError(stdout)
+                raise OSError(output)
         except OSError as exp:
             LOG.error('Failed to process wheel build: %s', str(exp))
         finally:
@@ -122,6 +163,15 @@ class WheelBuilder(object):
 
     @staticmethod
     def version_compare(versions, duplicate_handling='max'):
+        """Return a list of sorted versions.
+
+        :param versions: List of versions.
+        :type versions: ``list``
+        :param duplicate_handling: How to handle an issue with duplicate
+                                   versions within a versions list.
+        :type duplicate_handling: ``str``
+        :returns: ``list`` or ``str``
+        """
         versions.sort(key=version.LooseVersion)
         if duplicate_handling == 'max':
             return versions[-1]
@@ -133,6 +183,14 @@ class WheelBuilder(object):
 
     @staticmethod
     def _requirement_name(requirement):
+        """Return a ``tuple`` of requirement name and list of versions.
+
+        :param requirement: Name of a requirement that may have versions within
+                            it. This will use the constant,
+                            VERSION_DESCRIPTORS.
+        :type requirement: ``str``
+        :return: ``tuple``
+        """
         for version_descriptor in VERSION_DESCRIPTORS:
             if version_descriptor in requirement:
                 name = requirement.split(version_descriptor)[0]
@@ -142,6 +200,10 @@ class WheelBuilder(object):
             return requirement, list()
 
     def _sort_requirements(self):
+        """Return a sorted ``list`` of requirements.
+
+        :returns: ``list``
+        """
         _requirements = dict()
         for requirement in list(set(self.requirements)):
             name, versions = self._requirement_name(requirement)
@@ -199,12 +261,23 @@ class WheelBuilder(object):
         return sorted(packages)
 
     def _pop_items(self, found_repos, list_items):
+        """Remove items within a list.
+
+        :param found_repos: List of found repositories.
+        :type found_repos: ``list``
+        :param list_items: Name of list within the class to get.
+        :type list_items: ``str``
+        """
         item_list = getattr(self, list_items)
         for found_repo in found_repos:
-            idx = item_list.index(found_repo)
-            item_list.pop(idx)
+            item_list.pop(item_list.index(found_repo))
 
     def _pop_requirements(self, release):
+        """Remove requirement items that are within a requirements list.
+
+        :param release: name of link that is pip installable.
+        :type release: ``str``
+        """
         name = utils.git_pip_link_parse(repo=release)[0]
         self._pop_items(
             found_repos=[
@@ -215,6 +288,11 @@ class WheelBuilder(object):
         )
 
     def _pop_branches(self, release):
+        """Remove requirement items that are within a branch list.
+
+        :param release: name of link that is pip installable.
+        :type release: ``str``
+        """
         name = utils.git_pip_link_parse(repo=release)[0]
         self._pop_items(
             found_repos=[
@@ -225,6 +303,11 @@ class WheelBuilder(object):
         )
 
     def get_requirements(self, report):
+        """Load the requirements ``list`` from items within a report.
+
+        :param report: Dictionary report of required items.
+        :type report: ``dict``
+        """
         for repo in report.values():
             for repo_branch in repo['branches'].values():
                 if repo_branch.get('requirements'):
@@ -234,6 +317,11 @@ class WheelBuilder(object):
             self.requirements = self._sort_requirements()
 
     def get_branches(self, report):
+        """Load the branches ``list`` from items within a report.
+
+        :param report: Dictionary report of required items.
+        :type report: ``dict``
+        """
         for repo in report.values():
             for repo_branch in repo['branches'].values():
                 if repo_branch.get('pip_install_url'):
@@ -244,6 +332,11 @@ class WheelBuilder(object):
             self.branches = sorted(list(set(self.branches)))
 
     def get_releases(self, report):
+        """Load the releases ``list`` from items within a report.
+
+        :param report: Dictionary report of required items.
+        :type report: ``dict``
+        """
         for repo in report.values():
             if 'releases' in repo and isinstance(repo['releases'], list):
                 self.releases.extend(repo['releases'])
@@ -255,6 +348,13 @@ class WheelBuilder(object):
 
     @staticmethod
     def _copy_file(dst_file, src_file):
+        """Copy a source file to a destination file.
+
+        :param dst_file: Destination file.
+        :type dst_file: ``str``
+        :param src_file: Source file.
+        :type src_file: ``str``
+        """
         ## TODO(kevin)  This should be uncommented to provide a hash on the
         ## TODO(kevin)  filename, but NGINX escapes "#sha256=" as
         ## TODO(kevin)  "%23sha256%3d" and that makes the browser/pip angry
@@ -273,6 +373,7 @@ class WheelBuilder(object):
         utils.copy_file(src=src_file, dst=dst_file)
 
     def _store_pool(self):
+        """Create wheels within the storage pool directory."""
         built_wheels = utils.get_file_names(
             path=self.args['build_output']
         )
@@ -314,6 +415,13 @@ class WheelBuilder(object):
                 )
 
     def _create_link(self, full_wheel_path, wheel_name):
+        """Create symbolic links within a link directory.
+
+        :param full_wheel_path: Full path to wheel on local file system.
+        :type full_wheel_path: ``str``
+        :param wheel_name: name of wheel.
+        :type wheel_name: ``str``
+        """
         with utils.ChangeDir(self.args['link_dir']):
             # Create the link using the relative path
             link_path = os.path.join(self.args['link_dir'], wheel_name)
@@ -336,6 +444,16 @@ class WheelBuilder(object):
                 )
 
     def build_wheels(self, packages):
+        """Create python wheels from a list of packages.
+
+        This method will build all of the wheels from a list of packages. Once
+        the loop is completed the wheels items will be moved to the storage
+        pool location. Upon the completion of the method the ``build_output``
+        directory will be removed.
+
+        :param packages: List of packages to build.
+        :type packages: ``list``
+        """
         try:
             for package in packages:
                 self._build_wheels(package=package)
