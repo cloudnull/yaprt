@@ -49,6 +49,7 @@ from cloudlib import logger
 
 import yaprt
 from yaprt import clone_repos as clr
+from yaprt import html_indexer as hti
 from yaprt import packaging_report as pkgr
 from yaprt import utils
 from yaprt import wheel_builder
@@ -101,11 +102,11 @@ def main():
             clr.store_repos(args=args)
         elif args['parsed_command'] == 'build-wheels':
             wheel_builder.build_wheels(args=args)
-        elif args['parsed_command'] == 'store-repos':
-            clr.store_repos(args=args)
+        elif args['parsed_command'] == 'create-html-indexes':
+            hti.create_html_indexes(args=args)
         else:
             raise utils.AError(
-                'No known parsed command, Current Args: %s', args
+                'No known parsed command, Current Args: "%s"', args
             )
 
 if __name__ == '__main__':
