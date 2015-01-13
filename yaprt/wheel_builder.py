@@ -355,9 +355,9 @@ class WheelBuilder(object):
         :param src_file: Source file.
         :type src_file: ``str``
         """
-        ## TODO(kevin)  This should be uncommented to provide a hash on the
-        ## TODO(kevin)  filename, but NGINX escapes "#sha256=" as
-        ## TODO(kevin)  "%23sha256%3d" and that makes the browser/pip angry
+        # TODO(kevin)  This should be uncommented to provide a hash on the
+        # TODO(kevin)  filename, but NGINX escapes "#sha256=" as
+        # TODO(kevin)  "%23sha256%3d" and that makes the browser/pip angry
         # hash_type = 'sha256'
         # dst_file = '%(name)s%(break)s%(type)s%(equal)s%(hash)s' % {
         #     'name': dst_file,

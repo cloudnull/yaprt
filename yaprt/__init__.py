@@ -184,8 +184,8 @@ ARGUMENTS_DICT = {
                         '--full-repos'
                     ],
                     'nargs': '+',
-                    'help': 'Full URL path to a specific repo to build packages'
-                            ' for.',
+                    'help': 'Full URL path to a specific repo to build'
+                            ' packages for.',
                     'default': list()
                 },
                 'git_install_repos': {
@@ -193,7 +193,8 @@ ARGUMENTS_DICT = {
                         '--git-install-repos'
                     ],
                     'nargs': '+',
-                    'help': 'Full git install url with "branch/tag" within it.',
+                    'help': 'Full git install url with "branch/tag" within'
+                            ' it.',
                     'default': list()
                 },
                 'git_install_repos_file': {
