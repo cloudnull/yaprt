@@ -21,6 +21,7 @@ This module will create an HTML index as ``index.html`` in the root directory
 of every directory found, recursively, within a given path.
 """
 
+import base64
 import os
 
 import html
@@ -30,6 +31,22 @@ from yaprt import utils
 
 
 LOG = logger.getLogger('repo_builder')
+
+
+def return_hash(src_file):
+    """Return a hash for a given file.
+
+    :param src_file: Name of the file that will be hashed.
+    :type src_file: ``str``
+    :returns: ``str``
+    """
+    hash_sum = utils.hash_return(
+        local_file=src_file,
+        hash_type='md5'
+    )
+    if not hash_sum:
+        raise utils.AError('hash failure on "%s"', src_file)
+    return base64.b64encode(hash_sum)
 
 
 def create_html_indexes(args):
@@ -71,7 +88,8 @@ def create_html_indexes(args):
                 body.a(
                     os.path.basename(full_file_path).split('#')[0],
                     href=os.path.relpath(full_file_path),
-                    rel="internal"
+                    rel="internal",
+                    md='md5:%s' % return_hash(full_file_path)
                 )
                 body.br()
             else:

@@ -27,7 +27,7 @@ from yaprt import utils
 
 
 LOG = logger.getLogger('repo_builder')
-VERSION_DESCRIPTORS = ['>=', '<=', '==', '<', '>', '!=']
+VERSION_DESCRIPTORS = ['>=', '<=', '>', '<', '==', '!=']
 
 
 def build_wheels(args):
@@ -38,25 +38,44 @@ def build_wheels(args):
     """
     report = pkgr.read_report(args=args)
     wb = WheelBuilder(user_args=args)
-    wb.get_requirements(report=report)
-    if args['build_packages']:
-        wb.requirements.extend(args['build_packages'])
-        wb.requirements = list(set(wb.requirements))
 
+    # Everything is built in order for consistency, even if it's not being
+    # used later.
+    wb.get_requirements(report=report)
     wb.get_branches(report=report)
     wb.get_releases(report=report)
 
-    if args['build_requirements'] or args['build_packages']:
+    if args['build_packages']:
+        LOG.info('Building select packages: %d', len(args['build_packages']))
+        # Build a given set of wheels as hard requirements.
+        wb.build_wheels(
+            packages=wb.sort_requirements(
+                requirements_list=args['build_packages']
+            )
+        )
+        wb.requirements.extend(args['build_packages'])
+        wb.requirements = list(set(wb.requirements))
+
+    if args['build_requirements']:
         LOG.info('Found requirements: %d', len(wb.requirements))
-        wb.build_wheels(packages=wb.requirements)
+        wb.build_wheels(
+            packages=wb.requirements,
+            clean_first=args['force_clean']
+        )
 
     if args['build_branches']:
         LOG.info('Found branch packages: %d', len(wb.branches))
-        wb.build_wheels(packages=wb.branches)
+        wb.build_wheels(
+            packages=wb.branches,
+            clean_first=args['force_clean']
+        )
 
     if args['build_releases']:
         LOG.info('Found releases: %d', len(wb.releases))
-        wb.build_wheels(packages=wb.releases)
+        wb.build_wheels(
+            packages=wb.releases,
+            clean_first=args['force_clean']
+        )
 
 
 class WheelBuilder(object):
@@ -89,77 +108,6 @@ class WheelBuilder(object):
         self.branches = list()
         self.requirements = list()
         self.releases = list()
-
-    def _build_wheels(self, package):
-        """Create a python wheel.
-
-        The base command will timeout in 120 seconds and will create the wheels
-        within a defined build output directory, will allow external packages,
-        and will source the build output directory as the first link directory
-        to look through for already build wheels.
-
-        the argument options will enable no dependencies build, setting a build
-        directory otherwise a temporary directory will be used, setting an
-        additional link directory, setting extra link directories, changing the
-        defaul pip index URL, adding an extra pip index URL, and enabling
-        verbose mode.
-
-        :param package: Name of a particular package to build.
-        :type package: ``str``
-        :return:
-        """
-        command = [
-            'pip',
-            'wheel',
-            '--timeout',
-            '120',
-            '--wheel-dir',
-            self.args['build_output'],
-            '--allow-all-external',
-            '--find-links',
-            self.args['build_output']
-        ]
-
-        if self.args['pip_no_deps']:
-            command.extend(['--no-deps'])
-
-        if self.args['pip_no_index']:
-            command.extend(['--no-index'])
-
-        if self.args['build_dir']:
-            build_dir = self.args['build_dir']
-            command.extend(['--build', build_dir])
-        else:
-            build_dir = tempfile.mkstemp(prefix='orb_')
-            command.extend(['--build', build_dir])
-
-        if self.args['link_dir']:
-            command.extend(['--find-links', self.args['link_dir']])
-
-        if self.args['pip_extra_link_dirs']:
-            for link in self.args['pip_extra_link_dirs']:
-                command.extend(['--find-links', link])
-
-        if self.args['pip_index']:
-            command.extend(['--index-url', self.args['pip_index']])
-
-        if self.args['pip_extra_index']:
-            command.extend(['--extra-index-url', self.args['pip_extra_index']])
-
-        if self.args['debug'] is True:
-            command.append('--verbose')
-
-        command.append(utils.stip_quotes(item=package))
-        try:
-            output, success = self.shell_cmds.run_command(
-                command=' '.join(command)
-            )
-            if not success:
-                raise OSError(output)
-        except OSError as exp:
-            LOG.error('Failed to process wheel build: %s', str(exp))
-        finally:
-            utils.remove_dirs(directory=build_dir)
 
     @staticmethod
     def version_compare(versions, duplicate_handling='max'):
@@ -199,13 +147,182 @@ class WheelBuilder(object):
         else:
             return requirement, list()
 
-    def _sort_requirements(self):
+    @staticmethod
+    def _copy_file(dst_file, src_file):
+        """Copy a source file to a destination file.
+
+        :param dst_file: Destination file.
+        :type dst_file: ``str``
+        :param src_file: Source file.
+        :type src_file: ``str``
+        """
+        utils.copy_file(src=src_file, dst=dst_file)
+
+    def _build_wheels(self, package, no_links=False, retry=False):
+        """Create a python wheel.
+
+        The base command will timeout in 120 seconds and will create the wheels
+        within a defined build output directory, will allow external packages,
+        and will source the build output directory as the first link directory
+        to look through for already build wheels.
+
+        the argument options will enable no dependencies build, setting a build
+        directory otherwise a temporary directory will be used, setting an
+        additional link directory, setting extra link directories, changing the
+        defaul pip index URL, adding an extra pip index URL, and enabling
+        verbose mode.
+
+        :param package: Name of a particular package to build.
+        :type package: ``str``
+        :param no_links: Enable / Disable add on links when building the wheel.
+        :type no_links: ``bol``
+        :param retry: Enable retry mode.
+        :type retry: ``bol``
+        """
+        command = [
+            'pip',
+            'wheel',
+            '--timeout',
+            '120',
+            '--wheel-dir',
+            self.args['build_output'],
+            '--allow-all-external'
+        ]
+
+        if not no_links:
+            # Source the output directory by default for prebuilt wheels.
+            command.extend(['--find-links', self.args['build_output']])
+
+            if self.args['link_dir']:
+                command.extend(['--find-links', self.args['link_dir']])
+
+            if self.args['pip_extra_link_dirs']:
+                for link in self.args['pip_extra_link_dirs']:
+                    command.extend(['--find-links', link])
+
+        if self.args['pip_no_deps']:
+            command.extend(['--no-deps'])
+
+        if self.args['pip_no_index']:
+            command.extend(['--no-index'])
+
+        if self.args['build_dir']:
+            build_dir = self.args['build_dir']
+            command.extend(['--build', build_dir])
+        else:
+            build_dir = tempfile.mkstemp(prefix='orb_')
+            command.extend(['--build', build_dir])
+
+        if self.args['pip_index']:
+            command.extend(['--index-url', self.args['pip_index']])
+
+        if self.args['pip_extra_index']:
+            command.extend(['--extra-index-url', self.args['pip_extra_index']])
+
+        if self.args['debug'] is True:
+            command.append('--verbose')
+
+        command.append('"%s"' % utils.stip_quotes(item=package))
+        try:
+            output, success = self.shell_cmds.run_command(
+                command=' '.join(command)
+            )
+            if not success:
+                raise OSError(output)
+        except OSError as exp:
+            if not retry:
+                LOG.error(
+                    'Failed to process wheel build: "%s", other data: "%s"'
+                    ' Trying again without defined link lookups.',
+                    package,
+                    str(exp)
+                )
+                self._build_wheels(package, no_links=True, retry=True)
+            else:
+                LOG.exception(
+                    'Failed to process wheel build: "%s", other data: "%s"',
+                    package,
+                    str(exp)
+                )
+        else:
+            LOG.debug('Build Success for: "%s"', package)
+        finally:
+            utils.remove_dirs(directory=build_dir)
+
+    @staticmethod
+    def _get_sentinel(operators, vds):
+        """Return a sentinel and operator value.
+
+        :param operators: List of operators.
+        :type operators: ``list``
+        :param vds: Package version descriptors.
+        :type vds: ``dict``
+        :returns: ``tuple``
+        """
+        for operator in operators:
+            version_value = vds.get(operator, None)
+            if version_value:
+                return version_value, operator
+        else:
+            return None, None
+
+    def _version_sanity_check(self, vds, duplicate_handling='max'):
+        """Perform version description sanity check.
+
+        :param vds: Package version descriptors.
+        :type vds: ``dict``
+        :returnw: ``dict``
+        """
+        if duplicate_handling == 'max':
+            sentinel, anchor = self._get_sentinel(
+                operators=['>=', '>'],
+                vds=vds
+            )
+        elif duplicate_handling == 'min':
+            sentinel, anchor = self._get_sentinel(
+                operators=['<=', '<'],
+                vds=vds
+            )
+        else:
+            # if the `duplicate_handling` is not "min" or "max" return vds.
+            return vds
+
+        # When no sentinel was set return vds.
+        if not sentinel:
+            return vds
+
+        vlv = version.LooseVersion
+        for vd in VERSION_DESCRIPTORS:
+            # Conditionally skip the base excludes.
+            base_excludes = any([vd == '==', vd == '!=', vd == anchor])
+            if (vds[vd] and base_excludes) or isinstance(vds[vd], list):
+                continue
+            else:
+                # Set the version value to a string.
+                _version_ = str(vds[vd])
+
+                # If the anchor is in the max (greater than) list check if the
+                # sentinel version is great than the set version else check if
+                # the sentinel version is less than the set version.
+                if [i for i in ['>=', '>'] if i == anchor]:
+                    if vlv(sentinel) > vlv(_version_):
+                        vds[vd] = list()
+                else:
+                    if vlv(sentinel) < vlv(_version_):
+                        vds[vd] = list()
+        else:
+            return vds
+
+    def sort_requirements(self, requirements_list=None):
         """Return a sorted ``list`` of requirements.
 
         :returns: ``list``
         """
         _requirements = dict()
-        for requirement in list(set(self.requirements)):
+        if not requirements_list:
+            requirements_list = self.requirements
+
+        for requirement in set(requirements_list):
             name, versions = self._requirement_name(requirement)
             if name in _requirements:
                 req = _requirements[name]
@@ -241,9 +358,10 @@ class WheelBuilder(object):
                 else:
                     vds[key] = list()
 
-            if vds['==']:
+            if '==' in vds and vds['==']:
                 packages.append('%s==%s' % (pkg_name, vds['==']))
             else:
+                vds = self._version_sanity_check(vds)
                 _versions = list()
                 for vd in VERSION_DESCRIPTORS:
                     if vds[vd] and isinstance(vds[vd], basestring):
@@ -314,7 +432,7 @@ class WheelBuilder(object):
                     for key, value in repo_branch['requirements'].items():
                         self.requirements.extend(value)
         else:
-            self.requirements = self._sort_requirements()
+            self.requirements = self.sort_requirements()
 
     def get_branches(self, report):
         """Load the branches ``list`` from items within a report.
@@ -345,28 +463,6 @@ class WheelBuilder(object):
                     self._pop_branches(release)
         else:
             self.releases = sorted(list(set(self.releases)))
-
-    @staticmethod
-    def _copy_file(dst_file, src_file):
-        """Copy a source file to a destination file.
-
-        :param dst_file: Destination file.
-        :type dst_file: ``str``
-        :param src_file: Source file.
-        :type src_file: ``str``
-        """
-        hash_type = 'sha256'
-        dst_file = '%(name)s%(break)s%(type)s%(equal)s%(hash)s' % {
-            'name': dst_file,
-            'break': '#',
-            'type': hash_type,
-            'equal': '=',
-            'hash': utils.hash_return(
-                local_file=src_file,
-                hash_type=hash_type
-            )
-        }
-        utils.copy_file(src=src_file, dst=dst_file)
 
     def _store_pool(self):
         """Create wheels within the storage pool directory."""
@@ -439,7 +535,21 @@ class WheelBuilder(object):
                     os.path.join(self.args['link_dir'], wheel_name)
                 )
 
-    def build_wheels(self, packages):
+    def _package_clean(self, package):
+        """Remove links for a given package name if found.
+
+        This method will index the provided link directory and remove any items
+        that match the name of the package.
+
+        :param package: Name of a particular package to build.
+        :type package: ``str``
+        """
+        for file_name in utils.get_file_names(self.args['link_dir']):
+            if package == os.path.basename(file_name).split('-')[0]:
+                LOG.info('Removed link item from cleanup "%s"', package)
+                os.remove(file_name)
+
+    def build_wheels(self, packages, clean_first=False):
         """Create python wheels from a list of packages.
 
         This method will build all of the wheels from a list of packages. Once
@@ -452,6 +562,8 @@ class WheelBuilder(object):
         """
         try:
             for package in packages:
+                if clean_first and self.args['link_dir']:
+                    self._package_clean(package=package)
                 self._build_wheels(package=package)
             else:
                 self._store_pool()

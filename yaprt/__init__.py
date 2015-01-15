@@ -366,6 +366,17 @@ ARGUMENTS_DICT = {
                             ' requirements in a prebuilt report.',
                     'action': 'store_true',
                     'default': False
+                },
+                'force_clean': {
+                    'commands': [
+                        '--force-clean'
+                    ],
+                    'help': 'Remove know wheels in the target links directory'
+                            ' before building. This is a useful option when'
+                            ' building in new versions of items within a given'
+                            ' release.',
+                    'action': 'store_true',
+                    'default': False
                 }
             }
         },

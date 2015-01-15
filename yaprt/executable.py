@@ -48,11 +48,23 @@ from cloudlib import indicator
 from cloudlib import logger
 
 import yaprt
-from yaprt import clone_repos as clr
-from yaprt import html_indexer as hti
-from yaprt import packaging_report as pkgr
-from yaprt import utils
-from yaprt import wheel_builder
+
+
+def _importer(module, method):
+    """Returns a method from an imported module.
+
+    :param module: String name of the module to import. This should be in
+                   dotted notation.
+    :type module: ``str``
+    :param method: Name of the method to return.
+    :type method: ``str``
+    :returns: ``object``
+    """
+    module_object = getattr(
+        __import__(module, fromlist=list()),
+        module.split('.')[-1]
+    )
+    return getattr(module_object, method)
 
 
 def _arguments():
@@ -97,17 +109,23 @@ def main():
     args, run_spinner, log = preload_for_main()
     with indicator.Spinner(run=run_spinner):
         if args['parsed_command'] == 'create-report':
-            pkgr.create_report(args=args)
+            action = _importer('yaprt.packaging_report', 'create_report')
         elif args['parsed_command'] == 'store-repos':
-            clr.store_repos(args=args)
+            action = _importer('yaprt.clone_repos', 'store_repos')
         elif args['parsed_command'] == 'build-wheels':
-            wheel_builder.build_wheels(args=args)
+            action = _importer('yaprt.wheel_builder', 'build_wheels')
         elif args['parsed_command'] == 'create-html-indexes':
-            hti.create_html_indexes(args=args)
+            action = _importer('yaprt.html_indexer', 'create_html_indexes')
         else:
+            # This is imported here because its not used unless there is an
+            # error. If imported above, this caused a double log entry.
+            from yaprt import utils
             raise utils.AError(
                 'No known parsed command, Current Args: "%s"', args
             )
+
+        # Run the action
+        action(args=args)
 
 if __name__ == '__main__':
     main()
