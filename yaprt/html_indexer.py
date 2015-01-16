@@ -59,39 +59,47 @@ def create_html_indexes(args):
     :type args: ``dict``
     """
     full_path = utils.get_abs_path(file_name=args['repo_dir'])
+    excludes = [utils.get_abs_path(file_name=i) for i in args['dir_exclude']]
+
     for fpath, afolders, afiles in os.walk(full_path):
-        LOG.info('Path Found: "%s"', fpath)
-        _title = 'links for "%s"' % os.path.basename(fpath)
-        index = html.HTML('html')
-        head = index.head()
-        head.title(_title)
-        body = index.body()
-        body.h1(_title)
+        # Skip excluded directories.
+        if [i for i in excludes if fpath.startswith(i)]:
+            continue
+        else:
+            LOG.debug('Path Found: "%s"', fpath)
+            _title = 'links for "%s"' % os.path.basename(fpath)
+            index = html.HTML('html')
+            head = index.head()
+            head.title(_title)
+            body = index.body()
+            body.h1(_title)
 
-        with utils.ChangeDir(fpath):
-            LOG.info('Folders Found: "%d"', len(afolders))
-            for afolder in sorted(afolders):
-                full_folder_path = os.path.join(fpath, afolder)
-                body.a(
-                    os.path.basename(full_folder_path),
-                    href=os.path.relpath(full_folder_path),
-                    rel="internal"
-                )
-                body.br()
+            with utils.ChangeDir(fpath):
+                LOG.debug('Folders Found: "%d"', len(afolders))
+                for afolder in sorted(afolders):
+                    full_folder_path = os.path.join(fpath, afolder)
+                    body.a(
+                        os.path.basename(full_folder_path),
+                        href=os.path.relpath(full_folder_path),
+                        rel="internal"
+                    )
+                    body.br()
 
-            LOG.info('Folders Found: "%d"', len(afiles))
-            for afile in sorted(afiles):
-                if afile == 'index.html':
-                    continue
+                LOG.debug('Files Found: "%d"', len(afiles))
+                for afile in sorted(afiles):
+                    if afile == 'index.html':
+                        continue
 
-                full_file_path = os.path.join(fpath, afile)
-                body.a(
-                    os.path.basename(full_file_path).split('#')[0],
-                    href=os.path.relpath(full_file_path),
-                    rel="internal",
-                    md='md5:%s' % return_hash(full_file_path)
-                )
-                body.br()
-            else:
-                with open(os.path.join(fpath, 'index.html'), 'wb') as f:
-                    f.write(str(index))
+                    full_file_path = os.path.join(fpath, afile)
+                    body.a(
+                        os.path.basename(full_file_path).split('#')[0],
+                        href=os.path.relpath(full_file_path),
+                        rel="internal",
+                        md='md5:%s' % return_hash(full_file_path)
+                    )
+                    body.br()
+                else:
+                    index_file = os.path.join(fpath, 'index.html')
+                    with open(index_file, 'wb') as f:
+                        f.write(str(index))
+                    LOG.info('Index file [ %s ] created.', index_file)
