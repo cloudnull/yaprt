@@ -42,14 +42,14 @@ setuptools.setup(
     author_email=yaprt.__email__,
     description=yaprt.__description__,
     long_description=LDINFO,
-    license='GNU General Public License v3 or later (GPLv3+)',
+    license='License :: OSI Approved :: Apache Software License',
     packages=[
         'yaprt'
     ],
     url=yaprt.__url__,
     install_requires=required,
     classifiers=[
-        'Development Status :: 4 - Beta',
+        yaprt.__status__,
         'Intended Audience :: Information Technology',
         'Intended Audience :: System Administrators',
         'Intended Audience :: Developers',
