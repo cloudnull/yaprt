@@ -49,7 +49,7 @@ setuptools.setup(
     url=yaprt.__url__,
     install_requires=required,
     classifiers=[
-        'Development Status :: 5 - Production/Stable',
+        'Development Status :: 4 - Beta',
         'Intended Audience :: Information Technology',
         'Intended Audience :: System Administrators',
         'Intended Audience :: Developers',
