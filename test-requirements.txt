@@ -1,0 +1,5 @@
+# mock object framework
+mock>=1.0
+tox
+unittest2
+discover
