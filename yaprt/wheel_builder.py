@@ -231,7 +231,7 @@ class WheelBuilder(object):
                 raise OSError(output)
         except OSError as exp:
             if not retry:
-                LOG.error(
+                LOG.warn(
                     'Failed to process wheel build: "%s", other data: "%s"'
                     ' Trying again without defined link lookups.',
                     package,
@@ -544,9 +544,18 @@ class WheelBuilder(object):
         :param package: Name of a particular package to build.
         :type package: ``str``
         """
+        # Set the name of the package from an expected type, git+ or string.
+        if 'git+' in package:
+            name = utils.git_pip_link_parse(repo=package)[0]
+        else:
+            name = self._requirement_name(package)[0]
+
+        name = name.replace('-', '_').lower()
+        LOG.debug('Checking for package name [ %s ] in link directory.', name)
         for file_name in utils.get_file_names(self.args['link_dir']):
-            if package == os.path.basename(file_name).split('-')[0]:
-                LOG.info('Removed link item from cleanup "%s"', package)
+            base_file_name = os.path.basename(file_name).split('-')[0].lower()
+            if name == base_file_name:
+                LOG.info('Removed link item from cleanup "%s"', file_name)
                 os.remove(file_name)
 
     def build_wheels(self, packages, clean_first=False):
