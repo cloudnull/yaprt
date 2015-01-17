@@ -318,16 +318,30 @@ class WheelBuilder(object):
 
         :returns: ``list``
         """
-        _requirements = dict()
+
         if not requirements_list:
             requirements_list = self.requirements
+
+        # Set the incoming requirements list.
+        requirements_list = set(requirements_list)
 
         # Check if version sanity checking is disabled.
         if self.args['disable_version_sanity']:
             LOG.warn('Version sanity checking has been disabled.')
             # If disabled return a sorted set list of requirements.
-            return sorted(list(set(requirements_list)))
+            return sorted(requirements_list)
 
+        # Create the base requirement dictionary.
+        _requirements = dict()
+        for requirement in requirements_list:
+            name, versions = self._requirement_name(requirement)
+            if name in _requirements:
+                req = _requirements[name]
+            else:
+                req = _requirements[name] = list()
+            req.extend(versions)
+
+        # Begin sorting the packages.
         packages = list()
         for pkg_name, versions in _requirements.items():
             # Set the list of versions but convert it back to a list for use
