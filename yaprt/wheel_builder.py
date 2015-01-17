@@ -322,19 +322,19 @@ class WheelBuilder(object):
         if not requirements_list:
             requirements_list = self.requirements
 
-        for requirement in set(requirements_list):
-            name, versions = self._requirement_name(requirement)
-            if name in _requirements:
-                req = _requirements[name]
-            else:
-                req = _requirements[name] = list()
-
-            req.extend(versions)
+        # Check if version sanity checking is disabled.
+        if self.args['disable_version_sanity']:
+            LOG.warn('Version sanity checking has been disabled.')
+            # If disabled return a sorted set list of requirements.
+            return sorted(list(set(requirements_list)))
 
         packages = list()
         for pkg_name, versions in _requirements.items():
+            # Set the list of versions but convert it back to a list for use
+            # in a deque.
+            versions = list(set(versions))
             vds = dict([(i, list()) for i in VERSION_DESCRIPTORS])
-            q = collections.deque(list(set(versions)))
+            q = collections.deque(versions)
             while q:
                 _version = q.pop()
                 for version_descriptor in vds.keys():
@@ -386,9 +386,17 @@ class WheelBuilder(object):
         :param list_items: Name of list within the class to get.
         :type list_items: ``str``
         """
-        item_list = getattr(self, list_items)
-        for found_repo in found_repos:
-            item_list.pop(item_list.index(found_repo))
+        if self.args['disable_version_sanity']:
+            if found_repos:
+                LOG.warn(
+                    'Version sanity checking is disabled. At present the'
+                    ' following potentially duplicate and or conflicting'
+                    ' packages were not removed. Items: "%s"', found_repos
+                )
+        else:
+            item_list = getattr(self, list_items)
+            for found_repo in found_repos:
+                item_list.pop(item_list.index(found_repo))
 
     def _pop_requirements(self, release):
         """Remove requirement items that are within a requirements list.

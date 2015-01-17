@@ -377,6 +377,18 @@ ARGUMENTS_DICT = {
                             ' release.',
                     'action': 'store_true',
                     'default': False
+                },
+                'disable_version_sanity': {
+                    'commands': [
+                        '--disable-version-sanity'
+                    ],
+                    'help': 'Disabling version sanity removes version sanity'
+                            ' checking and all packages will be built "as-is".'
+                            ' This will produce a lot of duplicate packages'
+                            ' though is useful when attempting to build a'
+                            ' larger base repository.',
+                    'action': 'store_true',
+                    'default': False
                 }
             }
         },
