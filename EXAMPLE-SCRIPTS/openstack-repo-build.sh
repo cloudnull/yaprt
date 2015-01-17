@@ -36,6 +36,7 @@ FULL_REPOS="${FULL_REPOS:-''}"
 if [ -z "${FULL_REPOS}" ];then
     FULL_REPOS="https://api.github.com/repos/cloudnull/cloudlib "
     FULL_REPOS+="https://api.github.com/repos/cloudnull/turbolift "
+    FULL_REPOS+="https://api.github.com/repos/cloudnull/yaprt "
     FULL_REPOS+="https://api.github.com/repos/stackforge/os-ansible-deployment "
 fi
 
@@ -99,25 +100,30 @@ else
 fi
 
 # Create report
-python-repo-builder create-report -u "${GIT_USERNAME}" \
-                                  -p "${GIT_PASSWORD}" \
-                                  --repo-accounts "${REPO_ACCOUNTS}" \
-                                  --full-repos "${REPO_ACCOUNTS}" \
-                                  --report-file "${REPORT_JSON}"
+yaprt create-report -u "${GIT_USERNAME}" \
+                    -p "${GIT_PASSWORD}" \
+                    --repo-accounts "${REPO_ACCOUNTS}" \
+                    --full-repos "${REPO_ACCOUNTS}" \
+                    --report-file "${REPORT_JSON}"
 
 # Build ALL wheels
-python-repo-builder build-wheels --report-file "${REPORT_JSON}" \
-                                 --build-output "/tmp/opc-wheel-output" \
-                                 --build-dir "/tmp/opc-builder" \
-                                 --link-dir "${LINKS_PATH}" \
-                                 --storage-pool "${POOL_PATH}" \
-                                 --build-releases \
-                                 --build-branches \
-                                 --build-requirements
+yaprt build-wheels --report-file "${REPORT_JSON}" \
+                   --build-output "/tmp/opc-wheel-output" \
+                   --build-dir "/tmp/opc-builder" \
+                   --link-dir "${LINKS_PATH}" \
+                   --storage-pool "${POOL_PATH}" \
+                   --build-releases \
+                   --build-branches \
+                   --build-requirements \
+                   --disable-version-sanity
 
 # Store ALL git repositories
-python-repo-builder store-repos --git-repo-path "${GIT_PATH}" \
-                                --report-file "${REPORT_JSON}"
+yaprt store-repos --report-file "${REPORT_JSON}" \
+                  --git-repo-path "${GIT_PATH}"
+
+# Create HTML index pages everywhere
+yaprt create-html-indexes --report-file "${REPORT_JSON}" \
+                          --dir-exclude "${GIT_PATH}"
 
 echo "Complete."
 
