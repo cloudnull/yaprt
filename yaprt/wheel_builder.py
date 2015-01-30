@@ -45,6 +45,7 @@ def build_wheels(args):
     wb.get_branches(report=report)
     wb.get_releases(report=report)
 
+    packages = list()
     if args['build_packages']:
         LOG.info('Building select packages: %d', len(args['build_packages']))
         # Build a given set of wheels as hard requirements.
@@ -58,24 +59,46 @@ def build_wheels(args):
 
     if args['build_requirements']:
         LOG.info('Found requirements: %d', len(wb.requirements))
-        wb.build_wheels(
-            packages=wb.requirements,
-            clean_first=args['force_clean']
-        )
+
+        # Make sure that the pip package is built first, if its included.
+        for item in wb.requirements:
+            if item.startswith('pip'):
+                wb.requirements.insert(
+                    0, wb.requirements.pop(
+                        wb.requirements.index(
+                            item
+                        )
+                    )
+                )
+            # TODO(cloudnull) Remove this when httpretty sucks less.
+            elif item.startswith('httpretty'):
+                LOG.warn(
+                    'httpretty is an awful package and is generally'
+                    ' un-buildable. Please use something else if possible.'
+                    ' The package install for httpretty is being changed to'
+                    ' "httpretty>=0.8.3" as its really the only functional'
+                    ' version of this package that has been released.'
+                )
+                wb.requirements.pop(
+                    wb.requirements.index(
+                        item
+                    )
+                )
+                wb.requirements.append('httpretty>=0.8.3')
+        packages.extend(wb.requirements)
 
     if args['build_branches']:
         LOG.info('Found branch packages: %d', len(wb.branches))
-        wb.build_wheels(
-            packages=wb.branches,
-            clean_first=args['force_clean']
-        )
+        packages.extend(wb.branches)
 
     if args['build_releases']:
         LOG.info('Found releases: %d', len(wb.releases))
-        wb.build_wheels(
-            packages=wb.releases,
-            clean_first=args['force_clean']
-        )
+        packages.extend(wb.releases)
+
+    wb.build_wheels(
+        packages=packages,
+        clean_first=args['force_clean']
+    )
 
 
 class WheelBuilder(object):
@@ -158,7 +181,8 @@ class WheelBuilder(object):
         """
         utils.copy_file(src=src_file, dst=dst_file)
 
-    def _build_wheels(self, package, no_links=False, retry=False):
+    def _build_wheels(self, package=None, packages_file=None, no_links=False,
+                      retry=False):
         """Create a python wheel.
 
         The base command will timeout in 120 seconds and will create the wheels
@@ -174,6 +198,9 @@ class WheelBuilder(object):
 
         :param package: Name of a particular package to build.
         :type package: ``str``
+        :param packages_file: $PATH to the file which contains a list of
+                              packages to build.
+        :type packages_file: ``str``
         :param no_links: Enable / Disable add on links when building the wheel.
         :type no_links: ``bol``
         :param retry: Enable retry mode.
@@ -201,10 +228,18 @@ class WheelBuilder(object):
                     command.extend(['--find-links', link])
 
         if self.args['pip_no_deps']:
-            command.extend(['--no-deps'])
+            command.append('--no-deps')
+        else:
+            if self.args['pip_index']:
+                command.extend(['--index-url', self.args['pip_index']])
+
+            if self.args['pip_extra_index']:
+                command.extend(
+                    ['--extra-index-url', self.args['pip_extra_index']]
+                )
 
         if self.args['pip_no_index']:
-            command.extend(['--no-index'])
+            command.append('--no-index')
 
         if self.args['build_dir']:
             build_dir = self.args['build_dir']
@@ -213,16 +248,13 @@ class WheelBuilder(object):
             build_dir = tempfile.mkstemp(prefix='orb_')
             command.extend(['--build', build_dir])
 
-        if self.args['pip_index']:
-            command.extend(['--index-url', self.args['pip_index']])
-
-        if self.args['pip_extra_index']:
-            command.extend(['--extra-index-url', self.args['pip_extra_index']])
-
         if self.args['debug'] is True:
             command.append('--verbose')
 
-        command.append('"%s"' % utils.stip_quotes(item=package))
+        if packages_file:
+            command.extend(['--requirement', packages_file])
+        else:
+            command.append('"%s"' % utils.stip_quotes(item=package))
         try:
             output, success = self.shell_cmds.run_command(
                 command=' '.join(command)
@@ -390,7 +422,7 @@ class WheelBuilder(object):
                     else:
                         packages.append(pkg_name)
 
-        return sorted(packages)
+        return sorted(set(packages))
 
     def _pop_items(self, found_repos, list_items):
         """Remove items within a list.
@@ -452,7 +484,7 @@ class WheelBuilder(object):
             for repo_branch in repo['branches'].values():
                 if repo_branch.get('requirements'):
                     for key, value in repo_branch['requirements'].items():
-                        self.requirements.extend(value)
+                        self.requirements.extend([i.lower() for i in value])
         else:
             self.requirements = self.sort_requirements()
 
@@ -592,11 +624,24 @@ class WheelBuilder(object):
         :type packages: ``list``
         """
         try:
-            for package in packages:
-                if clean_first and self.args['link_dir']:
+            if clean_first and self.args['link_dir']:
+                for package in packages:
                     self._package_clean(package=package)
-                self._build_wheels(package=package)
+
+            if self.args['pip_bulk_operation']:
+                req_file = os.path.join(
+                    self.args['link_dir'],
+                    'build_reqs.txt'
+                )
+                LOG.info('Requirement file being written: "%s"', req_file)
+                self.shell_cmds.mkdir_p(path=os.path.dirname(req_file))
+                with open(req_file, 'wb') as f:
+                    f.writelines(['%s\n' % i for i in packages])
+
+                self._build_wheels(packages_file=req_file)
             else:
-                self._store_pool()
+                for package in packages:
+                    self._build_wheels(package=package)
+            self._store_pool()
         finally:
             utils.remove_dirs(directory=self.args['build_output'])

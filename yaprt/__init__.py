@@ -282,12 +282,22 @@ ARGUMENTS_DICT = {
                     'default': 'max',
                     'choices': ['max', 'min']
                 },
+                'pip_bulk_operation': {
+                    'commands': [
+                        '--pip-bulk-operation'
+                    ],
+                    'help': 'Attempt to build all of the requirements in one'
+                            ' operation. Generally this is faster and will'
+                            ' create less duplicates.',
+                    'action': 'store_true',
+                    'default': False
+                },
                 'pip_index': {
                     'commands': [
                         '--pip-index'
                     ],
                     'help': 'Index URL to override the main pip index.',
-                    'default': None
+                    'default': 'https://pypi.python.org/simple/'
                 },
                 'pip_extra_index': {
                     'commands': [
