@@ -278,7 +278,6 @@ class GithubRepoPorcess(object):
 
         item = dict()
         item['path'] = url.path.strip('/')
-
         if not repo['url'].endswith('/'):
             repo['url'] = '%s/' % repo['url']
 
@@ -303,7 +302,7 @@ class GithubRepoPorcess(object):
                 self._process_branch_releases(
                     name=repo['name'],
                     git_url=_repo['git_url'],
-                    repo_data=item,
+                    repo_data=item.copy(),
                     string_replacement=value,
                     branches=branches,
                     base_branches=_branches

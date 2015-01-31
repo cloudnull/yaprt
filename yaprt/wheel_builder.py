@@ -87,18 +87,26 @@ def build_wheels(args):
                 wb.requirements.append('httpretty>=0.8.3')
         packages.extend(wb.requirements)
 
-    if args['build_branches']:
-        LOG.info('Found branch packages: %d', len(wb.branches))
-        packages.extend(wb.branches)
-
-    if args['build_releases']:
-        LOG.info('Found releases: %d', len(wb.releases))
-        packages.extend(wb.releases)
-
     wb.build_wheels(
         packages=packages,
         clean_first=args['force_clean']
     )
+
+    if args['build_branches']:
+        LOG.info('Found branch packages: %d', len(wb.branches))
+        wb.build_wheels(
+            packages=wb.branches,
+            clean_first=args['force_clean'],
+            force_iterate=True
+        )
+
+    if args['build_releases']:
+        LOG.info('Found releases: %d', len(wb.releases))
+        wb.build_wheels(
+            packages=wb.releases,
+            clean_first=args['force_clean'],
+            force_iterate=True
+        )
 
 
 class WheelBuilder(object):
@@ -623,7 +631,7 @@ class WheelBuilder(object):
                 LOG.info('Removed link item from cleanup "%s"', file_name)
                 os.remove(file_name)
 
-    def build_wheels(self, packages, clean_first=False):
+    def build_wheels(self, packages, clean_first=False, force_iterate=False):
         """Create python wheels from a list of packages.
 
         This method will build all of the wheels from a list of packages. Once
@@ -633,13 +641,17 @@ class WheelBuilder(object):
 
         :param packages: List of packages to build.
         :type packages: ``list``
+        :param clean_first: Enable a search and clean for existing package
+        :type clean_first: ``bol``
+        :param force_iterate: Force package iteration.
+        :type force_iterate: ``bol``
         """
         try:
             if clean_first and self.args['link_dir']:
                 for package in packages:
                     self._package_clean(package=package)
 
-            if self.args['pip_bulk_operation']:
+            if self.args['pip_bulk_operation'] and not force_iterate:
                 req_file = os.path.join(
                     self.args['link_dir'],
                     'build_reqs.txt'

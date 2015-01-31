@@ -91,7 +91,7 @@ def git_pip_link_parse(repo):
         _git_url = _git_url[0]
 
     url, branch = _git_url.split('@')
-    html_url = os.path.splitext(url)[0].rstrip('/')
+    html_url = url.split('.git')[0].rstrip('/')
     name = os.path.basename(url.split('.git')[0].rstrip('/'))
     _branch = branch.split('#')
     branch = _branch[0]
