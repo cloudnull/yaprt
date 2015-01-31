@@ -266,14 +266,25 @@ class WheelBuilder(object):
                 LOG.warn(
                     'Failed to process wheel build: "%s", other data: "%s"'
                     ' Trying again without defined link lookups.',
-                    package,
+                    package or packages_file,
                     str(exp)
                 )
-                self._build_wheels(package, no_links=True, retry=True)
+                if package:
+                    self._build_wheels(
+                        package=package,
+                        no_links=True,
+                        retry=True
+                    )
+                else:
+                    self._build_wheels(
+                        packages_file=packages_file,
+                        no_links=True,
+                        retry=True
+                    )
             else:
                 LOG.exception(
                     'Failed to process wheel build: "%s", other data: "%s"',
-                    package,
+                    package or packages_file,
                     str(exp)
                 )
         else:

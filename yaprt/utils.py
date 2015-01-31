@@ -92,7 +92,7 @@ def git_pip_link_parse(repo):
 
     url, branch = _git_url.split('@')
     html_url = os.path.splitext(url)[0].rstrip('/')
-    name = os.path.basename(os.path.splitext(url)[0].rstrip('/'))
+    name = os.path.basename(url.split('.git')[0].rstrip('/'))
     _branch = branch.split('#')
     branch = _branch[0]
     if len(_branch) > 1:
@@ -139,7 +139,10 @@ def stip_quotes(item):
     :type item: ``str``
     :returns: ``str``
     """
-    return item.strip("""\'\"""")
+    if item:
+        return item.strip("""\'\"""")
+    else:
+        return item
 
 
 def get_items_from_file(file_name):
