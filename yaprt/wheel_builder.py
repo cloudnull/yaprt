@@ -225,12 +225,6 @@ class WheelBuilder(object):
         ]
 
         if not no_links:
-            # Source the output directory by default for prebuilt wheels.
-            command.extend(['--find-links', self.args['build_output']])
-
-            if self.args['link_dir']:
-                command.extend(['--find-links', self.args['link_dir']])
-
             if self.args['pip_extra_link_dirs']:
                 for link in self.args['pip_extra_link_dirs']:
                     command.extend(['--find-links', link])
@@ -277,6 +271,10 @@ class WheelBuilder(object):
                     package or packages_file,
                     str(exp)
                 )
+
+                # Remove the build directory when failed.
+                utils.remove_dirs(build_dir)
+
                 if package:
                     self._build_wheels(
                         package=package,
