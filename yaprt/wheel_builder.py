@@ -320,7 +320,7 @@ class WheelBuilder(object):
 
         :param vds: Package version descriptors.
         :type vds: ``dict``
-        :returnw: ``dict``
+        :return: ``dict``
         """
         if duplicate_handling == 'max':
             sentinel, anchor = self._get_sentinel(
@@ -425,6 +425,10 @@ class WheelBuilder(object):
                 packages.append('%s==%s' % (pkg_name, vds['==']))
             else:
                 vds = self._version_sanity_check(vds)
+                LOG.debug(
+                    'Package: "%s", Versions: "%s", Version Descriptors: "%s"',
+                    pkg_name, versions, vds
+                )
                 _versions = list()
                 for vd in VERSION_DESCRIPTORS:
                     if vds[vd] and isinstance(vds[vd], basestring):

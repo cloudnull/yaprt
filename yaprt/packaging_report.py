@@ -67,12 +67,14 @@ def _create_report(args):
             git_repos.extend(args['git_install_repos'])
 
         for repo in [i for i in git_repos if i]:
-            name, branch, html_url, url = utils.git_pip_link_parse(repo)
+            _repo_data = utils.git_pip_link_parse(repo)
+            name, branch, html_url, url, raw_repo = _repo_data
             git_repo = {
                 'name': name,
                 'git_url': url,
                 'html_url': html_url,
-                'url': url
+                'url': url,
+                'raw_repo': raw_repo
             }
             ghr.process_repo(repo=git_repo, branch={'name': branch})
 
@@ -210,7 +212,7 @@ class GithubRepoPorcess(object):
         else:
             return releases
 
-    def _process_branch_releases(self, name, git_url, branches, repo_data,
+    def _process_branch_releases(self, name, branches, repo_data,
                                  base_branches,  string_replacement):
         """Parse and populate requirements from within branches.
 
@@ -221,8 +223,6 @@ class GithubRepoPorcess(object):
 
         :param name: Name of a repository.
         :type name: ``str``
-        :param git_url: URL for the git repo.
-        :type git_url: ``str``
         :param branches: List of all branches in dictionary format
         :type branches: ``list``
         :param repo_data: Repository data
@@ -241,7 +241,6 @@ class GithubRepoPorcess(object):
                 branch['name'],
                 name
             )
-            repo_data['branch'] = branch['name']
             branch_data = base_branches[branch['name']] = dict()
             branch_reqs = branch_data['requirements'] = dict()
             for type_name, file_name in orb.REQUIREMENTS_FILE_TYPES:
@@ -256,10 +255,7 @@ class GithubRepoPorcess(object):
             setup_item = repo_data.copy()
             setup_item['file'] = 'setup.py'
             if self._check_setup(setup_path=string_replacement % setup_item):
-                branch_data['pip_install_url'] = self.pip_install % (
-                    git_url,
-                    branch['name']
-                )
+                branch_data['pip_install_url'] = repo_data['raw_repo']
 
     def _process_repo(self, repo, set_branch=None):
         """Parse a given repo and populate the requirements dictionary.
@@ -278,6 +274,7 @@ class GithubRepoPorcess(object):
 
         item = dict()
         item['path'] = url.path.strip('/')
+        item['raw_repo'] = repo['raw_repo']
         if not repo['url'].endswith('/'):
             repo['url'] = '%s/' % repo['url']
 
@@ -301,7 +298,6 @@ class GithubRepoPorcess(object):
 
                 self._process_branch_releases(
                     name=repo['name'],
-                    git_url=_repo['git_url'],
                     repo_data=item.copy(),
                     string_replacement=value,
                     branches=branches,

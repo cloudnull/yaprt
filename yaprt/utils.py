@@ -67,7 +67,8 @@ def git_pip_link_parse(repo):
       ('repo',
        'tag',
        'https://github.com/username/repo',
-       'https://github.com/username/repo')
+       'https://github.com/username/repo',
+       'git+https://github.com/username/repo@tag')
 
     Example parsing a git repo that uses an installable from a subdirectory:
       >>> git_pip_link_parse(
@@ -77,7 +78,9 @@ def git_pip_link_parse(repo):
       ('repo',
        'tag',
        'https://github.com/username/repo/remote_path/plugin.name',
-       'https://github.com/username/repo')
+       'https://github.com/username/repo',
+       'git+https://github.com/username/repo@tag#egg=plugin.name&'
+       'subdirectory=remote_path/plugin.name')
 
     :param repo: git repo string to parse.
     :type repo: ``str``
@@ -91,16 +94,20 @@ def git_pip_link_parse(repo):
         _git_url = _git_url[0]
 
     url, branch = _git_url.split('@')
-    html_url = url.split('.git')[0].rstrip('/')
     name = os.path.basename(url.split('.git')[0].rstrip('/'))
     _branch = branch.split('#')
     branch = _branch[0]
+    html_url = url.split('.git')[0].rstrip('/')
+    html_url = '%s/%s' % (html_url, branch)
+
+    # Determine if the package is a plugin type
     if len(_branch) > 1:
-        if 'subdirectory' in branch:
+        if 'subdirectory' in _branch[-1]:
             sub_path = _branch[1].split('subdirectory=')[1].split('&')[0]
+            name = '%s_%s' % (name, sub_path.replace('/', '_'))
             html_url = '%s/%s' % (html_url, sub_path)
 
-    return name.lower(), branch, html_url, url
+    return name.lower(), branch, html_url, url, repo
 
 
 def copy_file(src, dst):
