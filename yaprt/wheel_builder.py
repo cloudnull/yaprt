@@ -189,7 +189,7 @@ class WheelBuilder(object):
         """
         utils.copy_file(src=src_file, dst=dst_file)
 
-    def _build_wheels(self, package=None, packages_file=None, no_links=False,
+    def _pip_build_wheels(self, package=None, packages_file=None, no_links=False,
                       retry=False):
         """Create a python wheel.
 
@@ -258,11 +258,7 @@ class WheelBuilder(object):
         else:
             command.append('"%s"' % utils.stip_quotes(item=package))
         try:
-            output, success = self.shell_cmds.run_command(
-                command=' '.join(command)
-            )
-            if not success:
-                raise OSError(output)
+            self._run_cmd(command=command)
         except OSError as exp:
             if not retry:
                 LOG.warn(
@@ -276,13 +272,13 @@ class WheelBuilder(object):
                 utils.remove_dirs(build_dir)
 
                 if package:
-                    self._build_wheels(
+                    self._pip_build_wheels(
                         package=package,
                         no_links=True,
                         retry=True
                     )
                 else:
-                    self._build_wheels(
+                    self._pip_build_wheels(
                         packages_file=packages_file,
                         no_links=True,
                         retry=True
@@ -297,6 +293,65 @@ class WheelBuilder(object):
             LOG.debug('Build Success for: "%s"', package)
         finally:
             utils.remove_dirs(directory=build_dir)
+
+    def _setup_build_wheels(self, package):
+        """Create a Python wheel using a git with subdirectories.
+
+        The method will clone the source into place, move to the designated
+        sub directory and create a python wheel from the designated
+        subdirectory.
+
+        :param package: Name of a particular package to build.
+        :type package: ``str``
+        """
+        if self.args['build_dir']:
+            build_dir = self.args['build_dir']
+        else:
+            build_dir = tempfile.mkstemp(prefix='orb_')
+
+        package_full_link = package.split('git+')[1]
+        package_link, extra_data = package_full_link.split('#')
+        package_link, branch = package_link.split('@')
+        package_subdir = extra_data.split('subdirectory=')[1].split('&')[0]
+        package_name = utils.git_pip_link_parse(repo=package)[0]
+        package_location = os.path.join(build_dir, package_name)
+        sub_package_location = os.path.join(package_location, package_subdir)
+
+        try:
+            # Clone the source file to the build package location
+            clone_command = ['git', 'clone', package_link, package_location]
+            self._run_cmd(command=clone_command)
+
+            with utils.ChangeDir(sub_package_location):
+                # Checkout the given branch
+                checkout_command = ['git', 'checkout', branch]
+                self._run_cmd(command=checkout_command)
+
+                # Build the wheel using `python setup.py`
+                build_command = [
+                    'python',
+                    'setup.py',
+                    'bdist_wheel',
+                    '--dist-dir',
+                    self.args['build_output']
+                ]
+                self._run_cmd(command=build_command)
+
+            LOG.debug('Build Success for: "%s"', package)
+        finally:
+            utils.remove_dirs(directory=build_dir)
+
+    def _run_cmd(self, command):
+        """Run a shell command.
+
+        :param command: Shell command to run in list format.
+        :type command: ``list``
+        """
+        output, success = self.shell_cmds.run_command(
+            command=' '.join(command)
+        )
+        if not success:
+            raise OSError(output)
 
     @staticmethod
     def _get_sentinel(operators, vds):
@@ -663,10 +718,13 @@ class WheelBuilder(object):
                 with open(req_file, 'wb') as f:
                     f.writelines(['%s\n' % i for i in packages])
 
-                self._build_wheels(packages_file=req_file)
+                self._pip_build_wheels(packages_file=req_file)
             else:
                 for package in packages:
-                    self._build_wheels(package=package)
+                    if 'subdirectory=' in package:
+                        self._setup_build_wheels(package=package)
+                    else:
+                        self._pip_build_wheels(package=package)
             self._store_pool()
         finally:
             utils.remove_dirs(directory=self.args['build_output'])
