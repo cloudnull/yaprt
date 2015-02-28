@@ -22,6 +22,7 @@ from distutils import version
 from cloudlib import logger
 from cloudlib import shell
 
+import yaprt
 from yaprt import packaging_report as pkgr
 from yaprt import utils
 
@@ -189,8 +190,8 @@ class WheelBuilder(object):
         """
         utils.copy_file(src=src_file, dst=dst_file)
 
-    def _pip_build_wheels(self, package=None, packages_file=None, no_links=False,
-                      retry=False):
+    def _pip_build_wheels(self, package=None, packages_file=None,
+                          no_links=False, retry=False):
         """Create a python wheel.
 
         The base command will timeout in 120 seconds and will create the wheels
@@ -370,7 +371,7 @@ class WheelBuilder(object):
         else:
             return None, None
 
-    def _version_sanity_check(self, vds, duplicate_handling='max'):
+    def _version_sanity_check(self, vds, pkg_name, duplicate_handling='max'):
         """Perform version description sanity check.
 
         :param vds: Package version descriptors.
@@ -414,8 +415,22 @@ class WheelBuilder(object):
                 else:
                     if vlv(sentinel) < vlv(_version_):
                         vds[vd] = list()
-        else:
-            return vds
+
+        lesser_boundry = vds['<='] or vds['<']
+        greater_boundry = vds['>='] or vds['>']
+        if greater_boundry and lesser_boundry:
+            # check if the lesser is less than the greater. If so die.
+            if vlv(lesser_boundry) < vlv(greater_boundry):
+                raise utils.AError(
+                    'The package [ %s ] is impossible to be resolved. Its'
+                    ' required versions are as follow, "%s"', pkg_name,
+                    [i for i in vds.items() if i]
+                )
+            # If the less than is `=` to the greater than set them as `==`
+            elif greater_boundry == lesser_boundry:
+                vds['=='] = greater_boundry
+
+        return vds
 
     def sort_requirements(self, requirements_list=None):
         """Return a sorted ``list`` of requirements.
@@ -471,15 +486,15 @@ class WheelBuilder(object):
                 elif value and key == '!=':
                     vds[key] = self.version_compare(
                         versions=value,
-                        duplicate_handling='not_equal'
+                        duplicate_handling='None'  # Set `str` to force reverse
                     )
                 else:
                     vds[key] = list()
 
+            vds = self._version_sanity_check(pkg_name=pkg_name, vds=vds)
             if '==' in vds and vds['==']:
                 packages.append('%s==%s' % (pkg_name, vds['==']))
             else:
-                vds = self._version_sanity_check(vds)
                 LOG.debug(
                     'Package: "%s", Versions: "%s", Version Descriptors: "%s"',
                     pkg_name, versions, vds
