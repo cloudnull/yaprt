@@ -16,13 +16,13 @@
 
 import collections
 import os
+import re
 import tempfile
 from distutils import version
 
 from cloudlib import logger
 from cloudlib import shell
 
-import yaprt
 from yaprt import packaging_report as pkgr
 from yaprt import utils
 
@@ -171,13 +171,13 @@ class WheelBuilder(object):
         :type requirement: ``str``
         :return: ``tuple``
         """
-        for version_descriptor in VERSION_DESCRIPTORS:
-            if version_descriptor in requirement:
-                name = requirement.split(version_descriptor)[0]
-                versions = requirement.split(name)[-1].split(',')
-                return name, versions
+        name = re.split(r'%s\s*' % VERSION_DESCRIPTORS, requirement)[0]
+        versions = requirement.split(name)
+        if len(versions) < 1:
+            versions = list()
         else:
-            return requirement, list()
+            versions = versions[-1].split(',')
+        return name, versions
 
     @staticmethod
     def _copy_file(dst_file, src_file):
@@ -462,6 +462,7 @@ class WheelBuilder(object):
 
         # Begin sorting the packages.
         packages = list()
+
         for pkg_name, versions in _requirements.items():
             # Set the list of versions but convert it back to a list for use
             # in a deque.
