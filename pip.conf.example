@@ -1,0 +1,14 @@
+[global]
+no-index = True
+pre = True
+timeout = 120
+trusted-host =
+	127.0.0.1
+
+[install]
+upgrade = True
+allow_all_external = True
+
+# Note that find_links can use http if you were serving the code from somewhere else.
+find-links =
+    /var/www/repos/os-releases/juno
