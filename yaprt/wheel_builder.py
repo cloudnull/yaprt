@@ -28,7 +28,7 @@ from yaprt import utils
 
 
 LOG = logger.getLogger('repo_builder')
-VERSION_DESCRIPTORS = ['>=', '<=', '>', '<', '==', '!=']
+VERSION_DESCRIPTORS = ['>=', '<=', '>', '<', '==', '~=', '!=']
 
 
 def build_wheels(args):
@@ -399,7 +399,9 @@ class WheelBuilder(object):
         vlv = version.LooseVersion
         for vd in VERSION_DESCRIPTORS:
             # Conditionally skip the base excludes.
-            base_excludes = any([vd == '==', vd == '!=', vd == anchor])
+            base_excludes = any(
+                [vd == '~=', vd == '==', vd == '!=', vd == anchor]
+            )
             if (vds[vd] and base_excludes) or isinstance(vds[vd], list):
                 continue
             else:
@@ -495,6 +497,8 @@ class WheelBuilder(object):
             vds = self._version_sanity_check(pkg_name=pkg_name, vds=vds)
             if '==' in vds and vds['==']:
                 packages.append('%s==%s' % (pkg_name, vds['==']))
+            elif '~=' in vds and vds['~=']:
+                packages.append('%s~=%s' % (pkg_name, vds['~=']))
             else:
                 LOG.debug(
                     'Package: "%s", Versions: "%s", Version Descriptors: "%s"',
