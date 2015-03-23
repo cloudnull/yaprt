@@ -285,7 +285,7 @@ class WheelBuilder(object):
                         retry=True
                     )
             else:
-                LOG.exception(
+                raise utils.AError(
                     'Failed to process wheel build: "%s", other data: "%s"',
                     package or packages_file,
                     str(exp)
@@ -466,6 +466,10 @@ class WheelBuilder(object):
         packages = list()
 
         for pkg_name, versions in _requirements.items():
+            LOG.debug(
+                'Found requirements for package "%s": %s', pkg_name,
+                versions
+            )
             # Set the list of versions but convert it back to a list for use
             # in a deque.
             versions = list(set(versions))
@@ -473,11 +477,15 @@ class WheelBuilder(object):
             q = collections.deque(versions)
             while q:
                 _version = q.pop()
-                for version_descriptor in vds.keys():
+                for version_descriptor in VERSION_DESCRIPTORS:
                     if version_descriptor in _version:
                         content = _version.split(version_descriptor)[-1]
                         vds[version_descriptor].append(content)
                         break
+
+            LOG.debug(
+                'Package: "%s", Version Descriptors: "%s"', pkg_name, vds
+            )
 
             for key, value in vds.items():
                 value = list(set(value))
@@ -495,15 +503,15 @@ class WheelBuilder(object):
                     vds[key] = list()
 
             vds = self._version_sanity_check(pkg_name=pkg_name, vds=vds)
+            LOG.debug(
+                'Sanitized versions for package: "%s", Version'
+                ' Descriptors: %s', pkg_name, [i for i in vds if i]
+            )
             if '==' in vds and vds['==']:
                 packages.append('%s==%s' % (pkg_name, vds['==']))
             elif '~=' in vds and vds['~=']:
                 packages.append('%s~=%s' % (pkg_name, vds['~=']))
             else:
-                LOG.debug(
-                    'Package: "%s", Versions: "%s", Version Descriptors: "%s"',
-                    pkg_name, versions, vds
-                )
                 _versions = list()
                 for vd in VERSION_DESCRIPTORS:
                     if vds[vd] and isinstance(vds[vd], basestring):
@@ -512,11 +520,17 @@ class WheelBuilder(object):
                         _versions.extend(['%s%s' % (vd, i) for i in vds[vd]])
                 else:
                     if _versions:
-                        packages.append(
-                            '%s%s' % (pkg_name, ','.join(_versions))
+                        build_package = '%s%s' % (
+                            pkg_name, ','.join(
+                                _versions
+                            )
                         )
                     else:
-                        packages.append(pkg_name)
+                        build_package = pkg_name
+                    # Append the built package
+                    LOG.info('Built package: "%s"', build_package)
+                    packages.append(build_package)
+
 
         return sorted(set(packages))
 
