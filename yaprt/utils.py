@@ -309,7 +309,7 @@ class _BaseException(Exception):
     will be ignored.
 
     Example tuple format:
-      >>> raise AError('message: %s %s', 'other', 'things')
+      >>> raise AError('message: %s %s', 'others', 'things')
       AError: message: other things
 
     Example dict format:

@@ -375,12 +375,18 @@ class GithubRepoPorcess(object):
             LOG.debug(
                 'Found requirements [ %s ]', requirements_path
             )
-            req = requests.get(requirements_path)
-            return [
-                i.split()[0] for i in req.text.splitlines()
-                if i
-                if not i.startswith('#')
-            ]
+            file_req = requests.get(requirements_path)
+            if file_req.status_code >= 300:
+                raise utils.AError(
+                    'Failed to get requirement file contents for [ %s ]',
+                    requirements_path
+                )
+            else:
+                return [
+                    i.split()[0] for i in file_req.text.splitlines()
+                    if i
+                    if not i.startswith('#')
+                ]
         elif req.status_code >= 500:
             raise utils.AError(
                 'Connection return information resulted in a failure.'
@@ -437,6 +443,6 @@ class GithubRepoPorcess(object):
         :type url: ``str``
         """
         github_repos = self._get_repos(
-            repo_access=requests.head(url, auth=self.auth)
+            repo_access=str(requests.head(url, auth=self.auth))
         )
         self._grab_requirement_files(repos=github_repos)
