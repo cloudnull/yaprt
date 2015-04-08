@@ -15,10 +15,10 @@
 # (c) 2014, Kevin Carter <kevin.carter@rackspace.com>
 
 import collections
+from distutils import version
 import os
 import re
 import tempfile
-from distutils import version
 
 from cloudlib import logger
 from cloudlib import shell
@@ -530,7 +530,6 @@ class WheelBuilder(object):
                     # Append the built package
                     LOG.info('Built package: "%s"', build_package)
                     packages.append(build_package)
-
 
         return sorted(set(packages))
 

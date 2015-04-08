@@ -24,8 +24,8 @@ of every directory found, recursively, within a given path.
 import base64
 import os
 
-import html
 from cloudlib import logger
+import html
 
 from yaprt import utils
 

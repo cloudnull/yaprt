@@ -16,6 +16,7 @@
 
 import json
 import requests
+import time
 import urlparse
 
 from cloudlib import logger
@@ -350,7 +351,51 @@ class GithubRepoPorcess(object):
 
     @staticmethod
     @utils.retry(Exception)
-    def _check_requirements(requirements_path):
+    def _check_requirements_file(requirements_path):
+        """Check for a files existence on a remote file.
+
+        Attempt to determine if a file exists remotely. This method will
+        try 3 times by performing a HEAD on the file. If the HEAD request fails
+        the loop will sleep for ".128" of a second before running again. Should
+        the loop run all three times the method will return False. However if
+        the returned status code is >=200 and <=299 the method will return
+        True.
+
+        This loop was created to deal with transient issues that may result in
+        a >=300 return code.
+
+        If the connection being made to the URL is returned with a >=500 error
+        this method would raise an exception will will allow the method to
+        retry.
+
+        :param requirements_path: Path to remote file.
+        :type requirements_path: ``str``
+        :returns: ``bol``
+        """
+        for _ in range(3):
+            req = requests.head(requirements_path)
+            LOG.debug(
+                'Return code [ %s ] while looking for [ %s ]',
+                req.status_code,
+                requirements_path
+            )
+            if 200 <= req.status_code <= 299:
+                LOG.debug(
+                    'Found requirements [ %s ]', requirements_path
+                )
+                return True
+            elif req.status_code >= 500:
+                raise utils.AError(
+                    'Connection return information resulted in a failure.'
+                )
+            else:
+                # Super short sleep just enough to ensure process separation.
+                time.sleep(.128)
+        else:
+            return False
+
+    @utils.retry(Exception)
+    def _check_requirements(self, requirements_path):
         """Return a list of items.
 
         The returned list will contain only items with content. If an item
@@ -358,39 +403,23 @@ class GithubRepoPorcess(object):
 
         This method is a static method and will retry on any exceptions.
 
-        If the connection being made to the URL is returned with a 500 error
-        this method would raise an exception will will allow the method to
-        retry.
-
-        :param requirements_path:
+        :param requirements_path: Path to remote file.
+        :type requirements_path: ``str``
         :returns: ``list``
         """
-        req = requests.head(requirements_path)
-        LOG.debug(
-            'Return code [ %s ] while looking for [ %s ]',
-            req.status_code,
-            requirements_path
-        )
-        if req.status_code == 200:
-            LOG.debug(
-                'Found requirements [ %s ]', requirements_path
-            )
-            file_req = requests.get(requirements_path)
-            if file_req.status_code >= 300:
+        if self._check_requirements_file(requirements_path=requirements_path):
+            req = requests.get(requirements_path)
+            if req.status_code >= 300:
                 raise utils.AError(
                     'Failed to get requirement file contents for [ %s ]',
                     requirements_path
                 )
             else:
                 return [
-                    i.split()[0] for i in file_req.text.splitlines()
+                    i.split()[0] for i in req.text.splitlines()
                     if i
                     if not i.startswith('#')
                 ]
-        elif req.status_code >= 500:
-            raise utils.AError(
-                'Connection return information resulted in a failure.'
-            )
         else:
             return list()
 

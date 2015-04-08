@@ -38,7 +38,7 @@ def store_repos(args):
     cgr.store_git_repos(report=pkgr.read_report(args=args))
 
 
-class CloneGitRepos():
+class CloneGitRepos(object):
     def __init__(self, user_args):
         """Locally store git repositories.
 
