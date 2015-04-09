@@ -16,7 +16,6 @@
 
 import json
 import requests
-import time
 import urlparse
 
 from cloudlib import logger
@@ -388,9 +387,6 @@ class GithubRepoPorcess(object):
                 raise utils.AError(
                     'Connection return information resulted in a failure.'
                 )
-            else:
-                # Super short sleep just enough to ensure process separation.
-                time.sleep(.128)
         else:
             return False
 
