@@ -636,27 +636,34 @@ class WheelBuilder(object):
         # Iterate through the built wheels
         for built_wheel in built_wheels:
             _dst_wheel_file_name = os.path.basename(built_wheel)
+            # Directory name is being "normalised"
             dst_wheel_file = os.path.join(
                 self.args['storage_pool'],
-                _dst_wheel_file_name.split('-')[0],
+                _dst_wheel_file_name.split('-')[0].lower(),
                 _dst_wheel_file_name
             )
-
-            # Ensure the directory exists
-            LOG.debug(dst_wheel_file)
-            LOG.debug(os.path.dirname(dst_wheel_file))
-            self.shell_cmds.mkdir_p(path=os.path.dirname(dst_wheel_file))
 
             # Create destination file
             if os.path.exists(dst_wheel_file):
                 dst_size = os.path.getsize(dst_wheel_file)
                 src_size = os.path.getsize(built_wheel)
                 if dst_size != src_size:
+                    LOG.debug(
+                        'Wheel found but the sizes are different. The new'
+                        ' wheel file will be copied over. Wheel file [ %s ]',
+                        dst_wheel_file
+                    )
                     self._copy_file(
                         dst_file=dst_wheel_file,
                         src_file=built_wheel
                     )
             else:
+                LOG.debug(
+                    'Wheel not found copying wheel into place [ %s ]',
+                    dst_wheel_file
+                )
+                # Ensure the directory exists
+                self.shell_cmds.mkdir_p(path=os.path.dirname(dst_wheel_file))
                 self._copy_file(
                     dst_file=dst_wheel_file,
                     src_file=built_wheel
