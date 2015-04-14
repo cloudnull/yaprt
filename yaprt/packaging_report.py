@@ -282,7 +282,18 @@ class GithubRepoPorcess(object):
         for key, value in orb.GIT_REQUIREMENTS_MAP.items():
             if key in repo['url']:
                 if set_branch:
-                    branches = [set_branch]
+                    online_repo = urlparse.urljoin(repo['url'], 'tree/')
+                    online_repo = urlparse.urljoin(
+                        online_repo, set_branch['name']
+                    )
+                    branch_check = requests.head(online_repo)
+                    if branch_check.status_code <= 299:
+                        LOG.info('Repo and branch found [ %s ]', online_repo)
+                        branches = [set_branch]
+                    else:
+                        raise utils.AError(
+                            'Branch [ %s ] does not exist.', online_repo
+                        )
                 else:
                     branches = self._process_request(url=branches_url)
                     tags_url = urlparse.urljoin(repo['url'], 'tags')
@@ -296,6 +307,7 @@ class GithubRepoPorcess(object):
                         )
                     )
 
+                LOG.info('Processing repo for [ %s ]', repo['name'])
                 self._process_branch_releases(
                     name=repo['name'],
                     repo_data=item.copy(),
