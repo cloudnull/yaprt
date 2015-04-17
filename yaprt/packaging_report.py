@@ -49,14 +49,17 @@ def _create_report(args):
         ghr.process_packages(packages=packages)
 
     for repo in [i for i in args['repo_accounts'] if i]:
+        LOG.debug('Repo account Entry: %s', repo)
         ghr.process_repos(url=repo)
 
     for repo in [i for i in args['full_repos'] if i]:
+        LOG.debug('Full Repo Entry: %s', repo)
         ghr.process_repo_url(url=repo)
 
     if args['git_install_repos'] or args['git_install_repos_file']:
         git_repos = list()
         if args['git_install_repos_file']:
+            LOG.debug('install repos file: %s', args['git_install_repos_file'])
             git_repos.extend(
                 utils.get_items_from_file(
                     file_name=args['git_install_repos_file']
@@ -64,8 +67,10 @@ def _create_report(args):
             )
 
         if args['git_install_repos']:
+            LOG.debug('install repos: %s', args['git_install_repos'])
             git_repos.extend(args['git_install_repos'])
 
+        LOG.info('Git repos: %s', git_repos)
         for repo in [i for i in git_repos if i]:
             _repo_data = utils.git_pip_link_parse(repo)
             name, branch, html_url, url, raw_repo = _repo_data

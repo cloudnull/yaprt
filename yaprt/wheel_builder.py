@@ -19,6 +19,7 @@ from distutils import version
 import os
 import re
 import tempfile
+import urlparse
 
 from cloudlib import logger
 from cloudlib import shell
@@ -235,11 +236,15 @@ class WheelBuilder(object):
         else:
             if self.args['pip_index']:
                 command.extend(['--index-url', self.args['pip_index']])
+                domain = urlparse.urlparse(self.args['pip_index'])
+                command.extend(['--trusted-host', domain.hostname])
 
             if self.args['pip_extra_index']:
                 command.extend(
                     ['--extra-index-url', self.args['pip_extra_index']]
                 )
+                domain = urlparse.urlparse(self.args['pip_extra_index'])
+                command.extend(['--trusted-host', domain.hostname])
 
         if self.args['pip_no_index']:
             command.append('--no-index')
