@@ -286,10 +286,15 @@ class GithubRepoPorcess(object):
                     online_repo = urlparse.urljoin(
                         online_repo, set_branch['name']
                     )
-                    branch_check = requests.head(online_repo)
-                    if branch_check.status_code <= 299:
-                        LOG.info('Repo and branch found [ %s ]', online_repo)
-                        branches = [set_branch]
+                    # Retry the head operation 3 times
+                    for _ in range(3):
+                        branch_check = requests.head(online_repo)
+                        if branch_check.status_code <= 299:
+                            LOG.info(
+                                'Repo and branch found [ %s ]', online_repo
+                            )
+                            branches = [set_branch]
+                            break
                     else:
                         raise utils.AError(
                             'Branch [ %s ] does not exist.', online_repo
