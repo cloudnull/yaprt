@@ -494,11 +494,17 @@ class WheelBuilder(object):
 
             for key, value in vds.items():
                 value = list(set(value))
-                if value and key != '!=':
-                    vds[key] = self.version_compare(
-                        versions=value,
-                        duplicate_handling=self.args['duplicate_handling']
-                    )
+                if value and (key != '!=' or key != '~='):
+                    if [i for i in ['>=', '>'] if key == i]:
+                        vds[key] = self.version_compare(
+                            versions=value,
+                            duplicate_handling='max'
+                        )
+                    else:
+                        vds[key] = self.version_compare(
+                            versions=value,
+                            duplicate_handling='min'
+                        )
                 elif value and key == '!=':
                     vds[key] = self.version_compare(
                         versions=value,
@@ -510,7 +516,7 @@ class WheelBuilder(object):
             vds = self._version_sanity_check(pkg_name=pkg_name, vds=vds)
             LOG.debug(
                 'Sanitized versions for package: "%s", Version'
-                ' Descriptors: %s', pkg_name, [i for i in vds if i]
+                ' Descriptors: %s', pkg_name, vds.values()
             )
             if '==' in vds and vds['==']:
                 packages.append('%s==%s' % (pkg_name, vds['==']))
