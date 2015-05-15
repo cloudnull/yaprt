@@ -19,6 +19,7 @@
 
 import functools
 import hashlib
+import json
 import os
 import time
 
@@ -66,7 +67,7 @@ def git_pip_link_parse(repo):
       >>> git_pip_link_parse('git+https://github.com/username/repo@tag')
       ('repo',
        'tag',
-       'https://github.com/username/repo',
+       None,
        'https://github.com/username/repo',
        'git+https://github.com/username/repo@tag')
 
@@ -77,7 +78,7 @@ def git_pip_link_parse(repo):
       ... )
       ('repo',
        'tag',
-       'https://github.com/username/repo/remote_path/plugin.name',
+       'remote_path/plugin.name',
        'https://github.com/username/repo',
        'git+https://github.com/username/repo@tag#egg=plugin.name&'
        'subdirectory=remote_path/plugin.name')
@@ -86,6 +87,7 @@ def git_pip_link_parse(repo):
     :type repo: ``str``
     :returns: ``tuple``
     """
+
     LOG.debug(repo)
     _git_url = repo.split('+')
     if len(_git_url) >= 2:
@@ -97,17 +99,14 @@ def git_pip_link_parse(repo):
     name = os.path.basename(url.split('.git')[0].rstrip('/'))
     _branch = branch.split('#')
     branch = _branch[0]
-    html_url = url.split('.git')[0].rstrip('/')
-    html_url = '%s/%s' % (html_url, branch)
 
+    plugin_path = None
     # Determine if the package is a plugin type
     if len(_branch) > 1:
         if 'subdirectory' in _branch[-1]:
-            sub_path = _branch[1].split('subdirectory=')[1].split('&')[0]
-            name = '%s_%s' % (name, sub_path.replace('/', '_'))
-            html_url = '%s/%s' % (html_url, sub_path)
+            plugin_path = _branch[1].split('subdirectory=')[1].split('&')[0]
 
-    return name.lower(), branch, html_url, url, repo
+    return name.lower(), branch, plugin_path, url, repo
 
 
 def copy_file(src, dst):
@@ -250,6 +249,24 @@ def hash_return(local_file, hash_type='sha256'):
                     hash_function.update(chk.encode('utf-8'))
 
         return hash_function.hexdigest()
+
+
+def read_report(args):
+    """Return a dictionary from a read json file.
+    If there is an issue with the loaded JSON file a blank dictionary will be
+    returned.
+    :param args: Parsed arguments in dictionary format.
+    :type args: ``dict``
+    :return: ``dict``
+    """
+    try:
+        report_file = get_abs_path(file_name=args['report_file'])
+        with open(report_file, 'rb') as f:
+            report = json.loads(f.read())
+    except IOError:
+        return dict()
+    else:
+        return report
 
 
 class ChangeDir(object):
