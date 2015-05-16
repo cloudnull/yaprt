@@ -24,10 +24,6 @@ trap my_trap_handler ERR
 # Ensure there is a base path loaded
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
-# Github credentials
-GIT_USERNAME="${GIT_USERNAME:-''}"
-GIT_PASSWORD="${GIT_PASSWORD:-''}"
-
 # Repositories
 REPO_ACCOUNTS="${REPO_ACCOUNTS:-'https://api.github.com/orgs/openstack/repos'}"
 
@@ -100,9 +96,7 @@ else
 fi
 
 # Create report
-yaprt create-report -u "${GIT_USERNAME}" \
-                    -p "${GIT_PASSWORD}" \
-                    --repo-accounts "${REPO_ACCOUNTS}" \
+yaprt create-report --repo-accounts "${REPO_ACCOUNTS}" \
                     --full-repos "${REPO_ACCOUNTS}" \
                     --report-file "${REPORT_JSON}"
 

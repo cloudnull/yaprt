@@ -16,6 +16,8 @@
 
 import os
 
+from cloudlib import shell
+
 
 __author__ = "Kevin Carter"
 __contact__ = "Kevin Carter"
@@ -23,7 +25,7 @@ __email__ = "kevin.carter@rackspace.com"
 __copyright__ = "2014 All Rights Reserved"
 __license__ = "Apache2"
 __date__ = "2014-12-25"
-__version__ = "0.2.6"
+__version__ = "0.3.0"
 __status__ = "Development Status :: 5 - Production/Stable"
 __appname__ = "yaprt"
 __description__ = 'Repository builder for python source code'
@@ -65,30 +67,14 @@ ARGUMENTS_DICT = {
                 'repo-requirements.json'
             )
         },
-        'git_username': {
-            'commands': [
-                '-u',
-                '--git-username'
-            ],
-            'help': 'Username for a github account.',
-            'metavar': '[STR]',
-            'default': None
-        },
-        'git_password': {
-            'commands': [
-                '-p',
-                '--git-password'
-            ],
-            'help': 'Passowrd for a github account.',
-            'metavar': '[STR]',
-            'default': None
-        },
         'git_repo_path': {
             'commands': [
                 '--git-repo-path'
             ],
-            'help': 'Path to where to store all of the git repositories.',
-            'required': True
+            'help': 'Path to where to store all of the git repositories. If'
+                    ' no path is set a path will be created in your temp'
+                    ' directory.',
+            'default': None
         }
     },
     'optional_args': {
@@ -124,27 +110,16 @@ ARGUMENTS_DICT = {
             'help': 'Create repository for all Openstack requirements.',
             'shared_args': [
                 'report_file',
-                'git_username',
-                'git_password'
+                'git_repo_path'
             ],
             'optional_args': {
                 'groups': {
-                    'github_auth': {
-                        'text': 'Optional authentication details for github',
-                        'required': False,
-                        'group': [
-                            'git_username',
-                            'git_password'
-                        ]
-                    },
                     'report_options': {
                         'text': 'Optional report options',
                         'required': False,
                         'group': [
                             'report_file',
-                            'full_repos',
                             'git_install_repos',
-                            'repo_accounts',
                             'packages'
                         ]
                     }
@@ -166,27 +141,6 @@ ARGUMENTS_DICT = {
                             ' to build. This file should be, one package per'
                             ' line or separated by a white space.',
                     'default': None
-                },
-                'repo_accounts': {
-                    'commands': [
-                        '--repo-accounts'
-                    ],
-                    'nargs': '+',
-                    'help': 'User or Organization root directory to online'
-                            ' repository to build from. This is presently ONLY'
-                            ' supportable on github and can be any user or'
-                            ' organization on github to scan through and build'
-                            ' python wheels for.',
-                    'default': list()
-                },
-                'full_repos': {
-                    'commands': [
-                        '--full-repos'
-                    ],
-                    'nargs': '+',
-                    'help': 'Full URL path to a specific repo to build'
-                            ' packages for.',
-                    'default': list()
                 },
                 'git_install_repos': {
                     'commands': [
@@ -212,7 +166,8 @@ ARGUMENTS_DICT = {
         'build-wheels': {
             'help': 'Build all of the wheels from a json report.',
             'shared_args': [
-                'report_file'
+                'report_file',
+                'git_repo_path'
             ],
             'optional_args': {
                 'groups': {
@@ -434,3 +389,29 @@ ARGUMENTS_DICT = {
         }
     }
 }
+
+
+class RepoBaseClase(object):
+    def __init__(self, user_args, log_object):
+        self.args = user_args
+        self.shell_cmds = shell.ShellCommands(
+            log_name='repo_builder',
+            debug=self.args['debug']
+        )
+        self.log = log_object
+
+    def _run_command(self, command):
+        """Run a shell command.
+
+        :param command: list object containing parts of a shell command.
+        :type command: ``list``
+        """
+        data, success = self.shell_cmds.run_command(command=' '.join(command))
+        if data:
+            data = data.replace('\n', ' ')
+        self.log.debug(
+            'Clone Command Data: [ %s ], Success: [ %s ]', data, success
+        )
+        if not success:
+            self.log.error(str(data))
+            raise SystemExit(str(data))

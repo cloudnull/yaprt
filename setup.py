@@ -32,7 +32,7 @@ if sys.version_info < (2, 6, 0):
 elif sys.version_info < (2, 7, 0):
     required.append('argparse')
 
-with open('README.rst', 'rb') as r_file:
+with open('README.rst', 'r') as r_file:
     LDINFO = r_file.read()
 
 setuptools.setup(

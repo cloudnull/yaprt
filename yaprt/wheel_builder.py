@@ -22,9 +22,8 @@ import tempfile
 import urlparse
 
 from cloudlib import logger
-from cloudlib import shell
 
-from yaprt import packaging_report as pkgr
+import yaprt
 from yaprt import utils
 
 
@@ -38,7 +37,7 @@ def build_wheels(args):
     :param args: User defined arguments.
     :type args: ``dict``
     """
-    report = pkgr.read_report(args=args)
+    report = utils.read_report(args=args)
     wb = WheelBuilder(user_args=args)
 
     # Everything is built in order for consistency, even if it's not being
@@ -111,7 +110,7 @@ def build_wheels(args):
         )
 
 
-class WheelBuilder(object):
+class WheelBuilder(yaprt.RepoBaseClase):
     """Build python wheel files.
 
     Example options dict
@@ -133,11 +132,11 @@ class WheelBuilder(object):
         :type user_args: ``dict``
         :return:
         """
-        self.args = user_args
-        self.shell_cmds = shell.ShellCommands(
-            log_name='repo_builder',
-            debug=self.args['debug']
+        super(WheelBuilder, self).__init__(
+            user_args=user_args,
+            log_object=LOG
         )
+
         self.branches = list()
         self.requirements = list()
         self.releases = list()
@@ -238,6 +237,7 @@ class WheelBuilder(object):
                 command.extend(['--index-url', self.args['pip_index']])
                 domain = urlparse.urlparse(self.args['pip_index'])
                 command.extend(['--trusted-host', domain.hostname])
+                command.extend(['--trusted-host', domain.hostname])
 
             if self.args['pip_extra_index']:
                 command.extend(
@@ -264,7 +264,7 @@ class WheelBuilder(object):
         else:
             command.append('"%s"' % utils.stip_quotes(item=package))
         try:
-            self._run_cmd(command=command)
+            self._run_command(command=command)
         except OSError as exp:
             if not retry:
                 LOG.warn(
@@ -310,54 +310,66 @@ class WheelBuilder(object):
         :param package: Name of a particular package to build.
         :type package: ``str``
         """
-        if self.args['build_dir']:
-            build_dir = self.args['build_dir']
-        else:
-            build_dir = tempfile.mkstemp(prefix='orb_')
-
         package_full_link = package.split('git+')[1]
-        package_link, extra_data = package_full_link.split('#')
+
+        if '#' in package_full_link:
+            package_link, extra_data = package_full_link.split('#')
+        else:
+            package_link, extra_data = package_full_link, None
+
         package_link, branch = package_link.split('@')
-        package_subdir = extra_data.split('subdirectory=')[1].split('&')[0]
+
         package_name = utils.git_pip_link_parse(repo=package)[0]
-        package_location = os.path.join(build_dir, package_name)
-        sub_package_location = os.path.join(package_location, package_subdir)
+        repo_location = os.path.join(
+            self.args['git_repo_path'], package_name
+        )
+        if extra_data and 'subdirectory' in extra_data:
+            package_subdir = extra_data.split('subdirectory=')[1].split('&')[0]
+            git_package_location = os.path.join(
+                repo_location,
+                package_subdir
+            )
+        else:
+            git_package_location = repo_location
 
+        # Check that setuptools is available
+        setup_py = 'setup.py'
+        setup_file = os.path.join(git_package_location, setup_py)
+        remove_extra_setup = False
+        if os.path.isfile(setup_file):
+            with open(setup_file, 'r') as f:
+                setup_file_contents = f.readlines()
+                for i in setup_file_contents:
+                    if 'setuptools' in i:
+                        break
+                else:
+                    setup_file_contents.insert(0, 'import setuptools')
+                    setup_py = '%s2' % setup_file
+                    remove_extra_setup = True
+                    with open(setup_py, 'w') as sf:
+                        sf.writelines(setup_file_contents)
         try:
-            # Clone the source file to the build package location
-            clone_command = ['git', 'clone', package_link, package_location]
-            self._run_cmd(command=clone_command)
-
-            with utils.ChangeDir(sub_package_location):
+            with utils.ChangeDir(git_package_location):
                 # Checkout the given branch
                 checkout_command = ['git', 'checkout', branch]
-                self._run_cmd(command=checkout_command)
+                self._run_command(command=checkout_command)
 
                 # Build the wheel using `python setup.py`
                 build_command = [
                     'python',
-                    'setup.py',
+                    setup_py,
                     'bdist_wheel',
                     '--dist-dir',
-                    self.args['build_output']
+                    self.args['build_output'],
+                    '--bdist-dir',
+                    self.args['build_dir']
                 ]
-                self._run_cmd(command=build_command)
-
+                self._run_command(command=build_command)
             LOG.debug('Build Success for: "%s"', package)
         finally:
-            utils.remove_dirs(directory=build_dir)
-
-    def _run_cmd(self, command):
-        """Run a shell command.
-
-        :param command: Shell command to run in list format.
-        :type command: ``list``
-        """
-        output, success = self.shell_cmds.run_command(
-            command=' '.join(command)
-        )
-        if not success:
-            raise OSError(output)
+            utils.remove_dirs(directory=self.args['build_dir'])
+            if remove_extra_setup:
+                os.remove(setup_py)
 
     @staticmethod
     def _get_sentinel(operators, vds):
@@ -602,9 +614,13 @@ class WheelBuilder(object):
         """
         for repo in report.values():
             for repo_branch in repo['branches'].values():
-                if repo_branch.get('requirements'):
+                if not isinstance(repo_branch, dict):
+                    continue
+                elif 'requirements' in repo_branch:
                     for key, value in repo_branch['requirements'].items():
-                        self.requirements.extend([i.lower() for i in value])
+                        self.requirements.extend(
+                            [i.lower() for i in value]
+                        )
         else:
             self.requirements = self.sort_requirements()
 
@@ -616,7 +632,9 @@ class WheelBuilder(object):
         """
         for repo in report.values():
             for repo_branch in repo['branches'].values():
-                if repo_branch.get('pip_install_url'):
+                if not isinstance(repo_branch, dict):
+                    continue
+                elif repo_branch.get('pip_install_url'):
                     release = repo_branch['pip_install_url']
                     self.branches.append(release)
                     self._pop_requirements(release)
@@ -650,7 +668,7 @@ class WheelBuilder(object):
             # Directory name is being "normalised"
             dst_wheel_file = os.path.join(
                 self.args['storage_pool'],
-                _dst_wheel_file_name.split('-')[0].lower(),
+                _dst_wheel_file_name.split('-')[0].lower().replace('_', '-'),
                 _dst_wheel_file_name
             )
 
@@ -772,10 +790,7 @@ class WheelBuilder(object):
                 self._pip_build_wheels(packages_file=req_file)
             else:
                 for package in packages:
-                    if 'subdirectory=' in package:
-                        self._setup_build_wheels(package=package)
-                    else:
-                        self._pip_build_wheels(package=package)
+                    self._setup_build_wheels(package=package)
             self._store_pool()
         finally:
             utils.remove_dirs(directory=self.args['build_output'])

@@ -42,6 +42,8 @@ This tool can:
       directory and only reference files within that directory.
 """
 
+import os
+import tempfile
 
 from cloudlib import arguments
 from cloudlib import indicator
@@ -74,7 +76,7 @@ def _arguments():
         epilog='Licensed Apache2',
         title='Python package builder Licensed "Apache 2.0"',
         detail='Openstack package builder',
-        description='Rackspace Openstack, Python wheel builder',
+        description='Openstack, Python wheel builder',
         env_name='OS_REPO'
     ).arg_parser()
 
@@ -94,6 +96,15 @@ def preload_for_main():
         run_spinner = True
         stream_logs = False
 
+    if 'git_repo_path' not in args or not args['git_repo_path']:
+        args['git_repo_path'] = os.path.join(
+            tempfile.gettempdir(), 'yaprt_temp_git_dir'
+        )
+        try:
+            os.makedirs(args['git_repo_path'])
+        except OSError:
+            pass
+
     # Load the logging.
     _logging = logger.LogSetup(debug_logging=args['debug'])
     log = _logging.default_logger(
@@ -104,18 +115,77 @@ def preload_for_main():
     return args, run_spinner, log
 
 
+def _ensure_repos(args, organize_data):
+    """Ensure that all of the repositories that are needed are local.
+
+    :type args: ``dict``
+    :param args: User defined arguments.
+    :type organize_data: ``dict``
+    :param organize_data: Built data from all processed repos and packages
+    """
+    repos = [
+        (i.get('git_url'), i.get('branch')) for i in organize_data.values()
+        if i.get('git_url')
+    ]
+    _importer('yaprt.clone_repos', 'store_repos')(args=args, repo_list=repos)
+
+
+def runner(args, module, method, process_data=False, args_only=False):
+    """Import a module and run a method.
+
+    :type args: ``dict``
+    :param args: User defined arguments.
+    :param module: full module to import
+    :type module: ``str``
+    :param method: method name to run
+    :type method: ``str``
+    :param process_data: Enable data processing from arguments or a report
+    :type process_data: ``bol``
+    :param args_only: force method args to be user_args only
+    :type args_only: ``bol``
+    """
+    function_args = [args]
+    if process_data:
+        organize_data = _importer('yaprt.data_process', 'organize_data')(
+            args=args
+        )
+        function_args.append(organize_data)
+        _ensure_repos(*function_args)
+
+    if module and method:
+        action = _importer(module, method)
+        if args_only:
+            function_args = [args]
+
+        action(*function_args)
+
+
 def main():
     """Run the main application."""
     args, run_spinner, log = preload_for_main()
     with indicator.Spinner(run=run_spinner):
+
         if args['parsed_command'] == 'create-report':
-            action = _importer('yaprt.packaging_report', 'create_report')
-        elif args['parsed_command'] == 'store-repos':
-            action = _importer('yaprt.clone_repos', 'store_repos')
+            function_args = [
+                'yaprt.packaging_report',
+                'create_report',
+                True
+            ]
         elif args['parsed_command'] == 'build-wheels':
-            action = _importer('yaprt.wheel_builder', 'build_wheels')
+            function_args = [
+                'yaprt.wheel_builder',
+                'build_wheels',
+                True,
+                True
+            ]
         elif args['parsed_command'] == 'create-html-indexes':
-            action = _importer('yaprt.html_indexer', 'create_html_indexes')
+            function_args = [
+                'yaprt.html_indexer',
+                'create_html_indexes',
+                False
+            ]
+        elif args['parsed_command'] == 'store-repos':
+            function_args = [None, None, True]
         else:
             # This is imported here because its not used unless there is an
             # error. If imported above, this caused a double log entry.
@@ -124,8 +194,7 @@ def main():
                 'No known parsed command, Current Args: "%s"', args
             )
 
-        # Run the action
-        action(args=args)
+        runner(args, *function_args)
 
 if __name__ == '__main__':
     main()
