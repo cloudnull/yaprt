@@ -23,7 +23,6 @@ import urlparse
 
 from cloudlib import logger
 
-import yaprt
 from yaprt import utils
 
 
@@ -110,7 +109,7 @@ def build_wheels(args):
         )
 
 
-class WheelBuilder(yaprt.RepoBaseClase):
+class WheelBuilder(utils.RepoBaseClase):
     """Build python wheel files.
 
     Example options dict

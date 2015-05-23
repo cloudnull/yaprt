@@ -16,9 +16,6 @@
 
 import os
 
-from cloudlib import shell
-
-
 __author__ = "Kevin Carter"
 __contact__ = "Kevin Carter"
 __email__ = "kevin.carter@rackspace.com"
@@ -389,29 +386,3 @@ ARGUMENTS_DICT = {
         }
     }
 }
-
-
-class RepoBaseClase(object):
-    def __init__(self, user_args, log_object):
-        self.args = user_args
-        self.shell_cmds = shell.ShellCommands(
-            log_name='repo_builder',
-            debug=self.args['debug']
-        )
-        self.log = log_object
-
-    def _run_command(self, command):
-        """Run a shell command.
-
-        :param command: list object containing parts of a shell command.
-        :type command: ``list``
-        """
-        data, success = self.shell_cmds.run_command(command=' '.join(command))
-        if data:
-            data = data.replace('\n', ' ')
-        self.log.debug(
-            'Clone Command Data: [ %s ], Success: [ %s ]', data, success
-        )
-        if not success:
-            self.log.error(str(data))
-            raise SystemExit(str(data))

@@ -20,7 +20,6 @@ import os
 
 from cloudlib import logger
 
-import yaprt
 from yaprt import utils
 
 
@@ -40,7 +39,7 @@ def store_repos(args, repo_list):
     cgr.store_git_repos(repo_list=repo_list)
 
 
-class CloneGitRepos(yaprt.RepoBaseClase):
+class CloneGitRepos(utils.RepoBaseClase):
     def __init__(self, user_args):
         """Locally store git repositories.
 

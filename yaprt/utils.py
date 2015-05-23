@@ -24,6 +24,8 @@ import os
 import time
 
 from cloudlib import logger
+from cloudlib import shell
+
 
 LOG = logger.getLogger('repo_builder')
 
@@ -366,3 +368,29 @@ class AError(_BaseException):
     """An error has occurred."""
 
     pass
+
+
+class RepoBaseClase(object):
+    def __init__(self, user_args, log_object):
+        self.args = user_args
+        self.shell_cmds = shell.ShellCommands(
+            log_name='repo_builder',
+            debug=self.args['debug']
+        )
+        self.log = log_object
+
+    def _run_command(self, command):
+        """Run a shell command.
+
+        :param command: list object containing parts of a shell command.
+        :type command: ``list``
+        """
+        data, success = self.shell_cmds.run_command(command=' '.join(command))
+        if data:
+            data = data.replace('\n', ' ')
+        self.log.debug(
+            'Clone Command Data: [ %s ], Success: [ %s ]', data, success
+        )
+        if not success:
+            self.log.error(str(data))
+            raise SystemExit(str(data))
