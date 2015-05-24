@@ -22,7 +22,7 @@ __email__ = "kevin.carter@rackspace.com"
 __copyright__ = "2014 All Rights Reserved"
 __license__ = "Apache2"
 __date__ = "2014-12-25"
-__version__ = "0.3.0"
+__version__ = "0.3.1"
 __status__ = "Development Status :: 5 - Production/Stable"
 __appname__ = "yaprt"
 __description__ = 'Repository builder for python source code'
@@ -42,13 +42,6 @@ REQUIREMENTS_FILE_TYPES = [
     ('dev_requirements', 'dev-requirements.txt'),
     ('dev_requirements', 'dev_requirements.txt')
 ]
-
-
-# Templates for online git repositories that we scan through in order to
-# discover requirements files and installable python packages.
-GIT_REQUIREMENTS_MAP = {
-    'github': 'https://raw.githubusercontent.com/%(path)s/%(file)s'
-}
 
 
 # Arguments.

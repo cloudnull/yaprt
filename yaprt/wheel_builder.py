@@ -264,38 +264,34 @@ class WheelBuilder(utils.RepoBaseClase):
             command.append('"%s"' % utils.stip_quotes(item=package))
         try:
             self._run_command(command=command)
-        except OSError as exp:
-            if not retry:
-                LOG.warn(
-                    'Failed to process wheel build: "%s", other data: "%s"'
-                    ' Trying again without defined link lookups.',
-                    package or packages_file,
-                    str(exp)
-                )
-
-                # Remove the build directory when failed.
-                utils.remove_dirs(build_dir)
-
-                if package:
-                    self._pip_build_wheels(
-                        package=package,
-                        no_links=True,
-                        retry=True
-                    )
-                else:
-                    self._pip_build_wheels(
-                        packages_file=packages_file,
-                        no_links=True,
-                        retry=True
-                    )
-            else:
+        except (IOError, OSError) as exp:
+            # If retry mode is enabled and there's an exception fail
+            if retry:
                 raise utils.AError(
                     'Failed to process wheel build: "%s", other data: "%s"',
                     package or packages_file,
                     str(exp)
                 )
+
+            LOG.warn(
+                'Failed to process wheel build: "%s", other data: "%s"'
+                ' Trying again without defined link lookups.',
+                package or packages_file,
+                str(exp)
+            )
+
+            # Remove the build directory when failed.
+            utils.remove_dirs(build_dir)
+
+            # Rerun wheel builder in retry mode without links
+            build_wheel_args = {'no_links': True, 'retry': True}
+            if package:
+                build_wheel_args['package'] = package
+            else:
+                build_wheel_args['packages_file'] = packages_file
+            self._pip_build_wheels(**build_wheel_args)
         else:
-            LOG.debug('Build Success for: "%s"', package)
+            LOG.debug('Build Success for: "%s"', package or packages_file)
         finally:
             utils.remove_dirs(directory=build_dir)
 
