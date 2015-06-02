@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# (c) 2014, Kevin Carter <kevin.carter@rackspace.com>
+# (c) 2015, Kevin Carter <kevin.carter@rackspace.com>
 
 """Utilities used throughout the project."""
 
 
+import base64
 import functools
 import hashlib
 import json
@@ -379,18 +380,32 @@ class RepoBaseClase(object):
         )
         self.log = log_object
 
-    def _run_command(self, command):
+    def _run_command(self, command, skip_failure=False):
         """Run a shell command.
 
         :param command: list object containing parts of a shell command.
         :type command: ``list``
         """
         data, success = self.shell_cmds.run_command(command=' '.join(command))
-        if data:
-            data = data.replace('\n', ' ')
         self.log.debug(
-            'Clone Command Data: [ %s ], Success: [ %s ]', data, success
+            'Command Data: [ %s ], Success: [ %s ]', data, success
         )
-        if not success:
+        if not success and not skip_failure:
             self.log.error(str(data))
             raise SystemExit(str(data))
+        elif not success and skip_failure:
+            self.log.warn(
+                'Command failed but the failure was skipped. Command Data:'
+                ' [ %s ], Success: [ %s ]', data, success
+            )
+
+    @staticmethod
+    def split_git_branches( git_branch):
+        """Split the branches to see if there are multiple items.
+
+        :param git_branch: branch connection string.
+        :type git_branch: ``str``
+        """
+        git_branches = git_branch.split(',')
+        int_branch = base64.b64encode('-'.join(git_branches))
+        return [i.strip() for i in git_branches], int_branch[:32]

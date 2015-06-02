@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# (c) 2014, Kevin Carter <kevin.carter@rackspace.com>
+# (c) 2015, Kevin Carter <kevin.carter@rackspace.com>
 
 import collections
 from distutils import version
@@ -236,7 +236,6 @@ class WheelBuilder(utils.RepoBaseClase):
                 command.extend(['--index-url', self.args['pip_index']])
                 domain = urlparse.urlparse(self.args['pip_index'])
                 command.extend(['--trusted-host', domain.hostname])
-                command.extend(['--trusted-host', domain.hostname])
 
             if self.args['pip_extra_index']:
                 command.extend(
@@ -314,6 +313,11 @@ class WheelBuilder(utils.RepoBaseClase):
 
         package_link, branch = package_link.split('@')
 
+        # Split the branches to see if there are multiple checkouts/branches
+        git_branches, int_branch = self.split_git_branches(git_branch=branch)
+        if len(git_branches) > 1 or 'refs/changes' in branch:
+            branch = int_branch
+
         package_name = utils.git_pip_link_parse(repo=package)[0]
         repo_location = os.path.join(
             self.args['git_repo_path'], package_name
@@ -346,7 +350,7 @@ class WheelBuilder(utils.RepoBaseClase):
         try:
             with utils.ChangeDir(git_package_location):
                 # Checkout the given branch
-                checkout_command = ['git', 'checkout', branch]
+                checkout_command = ['git', 'checkout', "'%s'" % branch]
                 self._run_command(command=checkout_command)
 
                 # Build the wheel using `python setup.py`

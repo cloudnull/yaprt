@@ -22,7 +22,7 @@ __email__ = "kevin.carter@rackspace.com"
 __copyright__ = "2014 All Rights Reserved"
 __license__ = "Apache2"
 __date__ = "2014-12-25"
-__version__ = "0.3.1"
+__version__ = "0.3.2"
 __status__ = "Development Status :: 5 - Production/Stable"
 __appname__ = "yaprt"
 __description__ = 'Repository builder for python source code'
@@ -43,6 +43,12 @@ REQUIREMENTS_FILE_TYPES = [
     ('dev_requirements', 'dev_requirements.txt')
 ]
 
+# This is used if no global gitconfig file is found for the executing user.
+GITCONFIGBSAIC = """
+[user]
+        email = you@example.com
+        name = Your Name
+"""
 
 # Arguments.
 ARGUMENTS_DICT = {

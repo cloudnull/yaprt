@@ -66,7 +66,6 @@ In the basic example I'm going to assume that you have some ``repo_file.txt`` on
     git+https://github.com/openstack/nova@2014.2.2
     EOF
 
-
 With this basic requirements file ready we feed that file into yaprt using the ``create-report`` sub-command which will kick out a JSON report file. The report file will list all of the discovered requirements and pip install URLs for the items I listed in the requirements file.
 
 .. code-block:: bash
@@ -77,6 +76,22 @@ With this basic requirements file ready we feed that file into yaprt using the `
 
 
 Now that the report file `/var/www/repos/reports/release-stable-juno-report.json` is ready its time to tell yaprt to build all of the python bits into python wheels.
+
+Applying patches to a sources
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Yaprt can also use ref spec commits from things like gerrit and can chain multiple commits to gether to create a single patched branch. To do this you'd create an entry within the `repo_file.txt` or on the command line that looks like this:
+
+.. code-block:: shell
+
+    git+https://review.openstack.org/openstack/neutron@refs/changes/59/177159/12,refs/changes/11/187011/3,refs/changes/66/180466/2
+
+
+This entry will base all commits at the point in time of the first refs change with the other comma delimited changes as a cherry-pick on top. This will create a single "patched" branch which will be noted within the repo build report as items that have been patched via yaprt. Be aware that when doing multiple patches one on-top of one another the pick strategy is to always use the first commit in the list as the base with everything else picked on top of it. This is done using the following git pick process ``git cherry-pick -x FETCH_HEAD``. If there is an error in picking the commits, the process will halt resulting in log output regarding what's broken and why.
+
+
+Building the wheels
+-------------------
 
 First we tell yaprt to resolve the requirements by themselves. Yaprt uses a solver for all of the known requirements such that it will make sure that there are no conflicting dependencies for all of the items being built within the given report. This is especially useful when dealing with multiple projects that implement independent requirements that may be disjointed from one another and have limited information on specifically what items are absolutely required and which are not.
 
@@ -108,7 +123,7 @@ At the completion of this command we will have a loaded PyPi index which will be
           --build-dir "/tmp/openstack-builder" \
           --build-branches \
           --build-releases
- 
+
 
 If you are only building the wheels for a local system you can stop here. However, if you are building these wheels on a remote system and your hosting the index via some web server you can run one more yaprt command to create html indexes of all the files found within your repo structure.
 
@@ -118,7 +133,7 @@ If you are only building the wheels for a local system you can stop here. Howeve
           create-html-indexes \
           --repo-dir "/var/www/repos"
 
-Now your done. 
+Now your done.
 
 
 For more information on how to setup pip to simply use your frozen repository of wheels or our PyPi index please have a look at the pip.conf.example file within this repository for ideas on how that can be done as well as review the online documentation on regarding setting up and using pip configuration files (https://pip.pypa.io/en/latest/user_guide.html#configuration).

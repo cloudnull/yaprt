@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# (c) 2014, Kevargs['parsed_command']in Carter <kevin.carter@rackspace.com>
+# (c) 2015, Kevin Carter <kevin.carter@rackspace.com>
 
 import json
 import os
@@ -103,8 +103,19 @@ class GitRepoProcess(utils.RepoBaseClase):
                 repo_data['name']
             )
 
+            git_branches, int_branch = self.split_git_branches(
+                git_branch=repo_data['branch']
+            )
+            patched_from = None
+            if len(git_branches) > 1 or 'refs/changes' in repo_data['branch']:
+                repo_data['branch'] = int_branch
+                patched_from = True
+
             self._run_command(command=['git', 'checkout', repo_data['branch']])
             branch_data = base_report_data[repo_data['branch']] = dict()
+            # Record the items that make up a patched branch
+            if patched_from:
+                branch_data['patched_from'] = git_branches
             branch_reqs = branch_data['requirements'] = dict()
             for type_name, file_name in yaprt.REQUIREMENTS_FILE_TYPES:
                 file_path = os.path.join(repo_path, file_name)
