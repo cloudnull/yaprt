@@ -173,7 +173,6 @@ class CloneGitRepos(utils.RepoBaseClase):
         """
         # Set the repo name to the base name of the git_repo variable.
         repo_name = os.path.basename(git_repo)
-        repo_name = os.path.splitext(repo_name)[0]
 
         # Set the git repo path.
         repo_path_name = os.path.join(self.args['git_repo_path'], repo_name)

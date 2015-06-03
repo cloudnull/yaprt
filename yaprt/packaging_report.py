@@ -95,7 +95,12 @@ class GitRepoProcess(utils.RepoBaseClase):
                                  method.
         :type base_report_data: ``dict``
         """
-        repo_path = os.path.join(self.args['git_repo_path'], repo_data['name'])
+
+        name = utils.git_pip_link_parse(repo=repo_data['original_data'])[0]
+        repo_path = os.path.join(self.args['git_repo_path'], name)
+        if repo_data['plugin_path']:
+            repo_path = os.path.join(repo_path, repo_data['plugin_path'])
+
         with utils.ChangeDir(repo_path):
             LOG.debug(
                 'Discovered branch "%s" for repo "%s"',

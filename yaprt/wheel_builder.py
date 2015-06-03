@@ -337,12 +337,25 @@ class WheelBuilder(utils.RepoBaseClase):
         remove_extra_setup = False
         if os.path.isfile(setup_file):
             with open(setup_file, 'r') as f:
-                setup_file_contents = f.readlines()
+                setup_file_contents = [
+                    i for i in f.readlines() if i if not i.startswith('#')
+                ]
                 for i in setup_file_contents:
                     if 'setuptools' in i:
                         break
                 else:
-                    setup_file_contents.insert(0, 'import setuptools')
+                    for line in setup_file_contents:
+                        if line.startswith('import'):
+                            pass
+                        elif line.startswith('from'):
+                            pass
+                        else:
+                            index = setup_file_contents.index(line)
+                            break
+                    else:
+                        index = 0
+
+                    setup_file_contents.insert(index, 'import setuptools')
                     setup_py = '%s2' % setup_file
                     remove_extra_setup = True
                     with open(setup_py, 'w') as sf:

@@ -14,6 +14,7 @@
 #
 # (c) 2015, Kevin Carter <kevin.carter@rackspace.com>
 
+import os
 
 from cloudlib import logger
 
@@ -82,6 +83,8 @@ def organize_data(args):
     LOG.debug('Git repos: %s', git_repos)
     for repo in [i for i in git_repos if i]:
         name, branch, plugin_path, url, o_data = utils.git_pip_link_parse(repo)
+        if plugin_path:
+            name = '%s_plugin_pkg_%s' % (name, os.path.basename(plugin_path))
         _repo_data = repo_data[name] = dict()
         _repo_data['name'] = name
         _repo_data['branch'] = branch
