@@ -58,6 +58,7 @@ class CloneGitRepos(utils.RepoBaseClase):
             log_object=LOG
         )
 
+    @utils.retry(SystemExit)
     def _run_clone(self, git_repo, repo_path_name):
         """Return a list of strings that is used to clone a repository.
 

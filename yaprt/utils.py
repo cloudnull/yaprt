@@ -54,9 +54,13 @@ def retry(exception, tries=3, delay=1, backoff=1):
             while mtries > 1:
                 try:
                     return f(*args, **kwargs)
-                except exception:
+                except exception as exp:
                     time.sleep(mdelay)
                     mtries -= 1
+                    LOG.warn(
+                        'Error running process. Remaining attempts [ %s ]'
+                        ' Details: [ %s ]', mtries, exp
+                    )
                     mdelay *= backoff
             return f(*args, **kwargs)
         return f_retry  # true decorator
