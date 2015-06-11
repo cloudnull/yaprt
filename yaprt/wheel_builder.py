@@ -109,7 +109,7 @@ def build_wheels(args):
         )
 
 
-class WheelBuilder(utils.RepoBaseClase):
+class WheelBuilder(utils.RepoBaseClass):
     """Build python wheel files.
 
     Example options dict

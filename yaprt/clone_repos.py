@@ -46,7 +46,7 @@ def store_repos(args, repo_list):
     cgr.store_git_repos(repo_list=repo_list)
 
 
-class CloneGitRepos(utils.RepoBaseClase):
+class CloneGitRepos(utils.RepoBaseClass):
     def __init__(self, user_args):
         """Locally store git repositories.
 
@@ -91,11 +91,16 @@ class CloneGitRepos(utils.RepoBaseClase):
         git_branches, int_branch = self.split_git_branches(
             git_branch=git_branch
         )
-        # Ensure we have our yaprt stagging point within the repos
+
+        # Fetch all existing remotes first.
+        self._run_command(command=['git', 'fetch', '--all'])
+
+        # Ensure we have our yaprt staging point within the repo
         self._run_command(
             command=['git', 'checkout', '-B', 'yaprt-integration'],
             skip_failure=True
         )
+
         # Verify if the integration branch exists, If so, Nuke it, else pass.
         self._run_command(
             command=['git', 'branch', '-D', "'%s'" % int_branch],
@@ -148,7 +153,7 @@ class CloneGitRepos(utils.RepoBaseClase):
                 self._run_command(command=command)
         except SystemExit:
             if revert_cherrypick_on_fail:
-                # Ensure we have our yaprt stagging point within the repos
+                # Abort the cherry-pick to ensure the history is clean
                 self._run_command(
                     command=['git', 'cherry-pick', '--abort'],
                     skip_failure=True

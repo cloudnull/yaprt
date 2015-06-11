@@ -375,7 +375,7 @@ class AError(_BaseException):
     pass
 
 
-class RepoBaseClase(object):
+class RepoBaseClass(object):
     def __init__(self, user_args, log_object):
         self.args = user_args
         self.shell_cmds = shell.ShellCommands(
@@ -404,7 +404,7 @@ class RepoBaseClase(object):
             )
 
     @staticmethod
-    def split_git_branches( git_branch):
+    def split_git_branches(git_branch):
         """Split the branches to see if there are multiple items.
 
         :param git_branch: branch connection string.

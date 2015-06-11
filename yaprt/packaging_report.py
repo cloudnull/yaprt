@@ -65,7 +65,7 @@ def create_report(args, organize_data):
         f.write(built_report)
 
 
-class GitRepoProcess(utils.RepoBaseClase):
+class GitRepoProcess(utils.RepoBaseClass):
     def __init__(self, user_args):
         """Process github repos for requirements.
 
