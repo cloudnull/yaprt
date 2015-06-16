@@ -16,6 +16,7 @@
 
 import json
 import os
+import urlparse
 
 from cloudlib import logger
 
@@ -80,6 +81,44 @@ class GitRepoProcess(utils.RepoBaseClass):
         self.requirements = dict()
         self.pip_install = 'git+%s@%s'
 
+    def _process_sub_plugin(self, requirement, repo_data):
+        """process the entry like a subdirectory package.
+
+        :param requirement: Name of the requirement
+        :type requirement: ``str``
+        :param repo_data: Repository data
+        :type repo_data: ``dict``
+        """
+        requirement_item = requirement.split('-e', 1)[-1].strip()
+        try:
+            requirement_url = urlparse.urlparse(requirement_item)
+            assert all([requirement_url.scheme, requirement_url.netloc])
+            assert requirement_url.scheme in ['https', 'http', 'git']
+        except AssertionError:
+            item_name = os.path.basename(requirement_item)
+            item_req = self.pip_install % (
+                repo_data['git_url'],
+                repo_data['branch']
+            )
+            repo = '%s#egg=%s&subdirectory=%s' % (
+                item_req, item_name, requirement_item
+            )
+        else:
+            repo = requirement_url
+
+        name, branch, plugin_path, url, o_data = utils.git_pip_link_parse(repo)
+        if plugin_path:
+            name = '%s_plugin_pkg_%s' % (name, os.path.basename(plugin_path))
+        # Process the new requirement item
+        _new_repo = {
+            'name': name,
+            'branch': branch,
+            'plugin_path': plugin_path,
+            'git_url': url,
+            'original_data': o_data
+        }
+        self.process_repo(repo=_new_repo)
+
     def _process_repo_requirements(self, repo_data, base_report_data):
         """Parse and populate requirements from within branches.
 
@@ -95,7 +134,6 @@ class GitRepoProcess(utils.RepoBaseClass):
                                  method.
         :type base_report_data: ``dict``
         """
-
         name = utils.git_pip_link_parse(repo=repo_data['original_data'])[0]
         repo_path = os.path.join(self.args['git_repo_path'], name)
         if repo_data['plugin_path']:
@@ -127,7 +165,24 @@ class GitRepoProcess(utils.RepoBaseClass):
                 if os.path.isfile(file_path):
                     repo_data['file'] = file_name
                     with open(file_path, 'r') as f:
-                        _requirements = f.readlines()
+                        _file_requirements = f.readlines()
+
+                    # If the requirement file has a -e item within it treat
+                    #  it like a local subdirectory plugin and process it.
+                    _requirements = list()
+                    for item in _file_requirements:
+                        requirement = item.split('#')[0].strip()
+                        if requirement.startswith('-e'):
+                            # If the requirement item is a "-e ." skip.
+                            if requirement.endswith('.'):
+                                continue
+
+                            self._process_sub_plugin(
+                                requirement=requirement,
+                                repo_data=repo_data
+                            )
+                        else:
+                            _requirements.append(requirement)
 
                     _requirements = [
                         i.split('#')[0].strip() for i in _requirements
