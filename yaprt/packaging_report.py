@@ -160,7 +160,13 @@ class GitRepoProcess(utils.RepoBaseClass):
             if patched_from:
                 branch_data['patched_from'] = git_branches
             branch_reqs = branch_data['requirements'] = dict()
-            for type_name, file_name in yaprt.REQUIREMENTS_FILE_TYPES:
+
+            if 'yaprtignorerequirements=true' in repo_data['original_data']:
+                requirement_files = list()
+            else:
+                requirement_files = yaprt.REQUIREMENTS_FILE_TYPES
+
+            for type_name, file_name in requirement_files:
                 file_path = os.path.join(repo_path, file_name)
                 if os.path.isfile(file_path):
                     repo_data['file'] = file_name

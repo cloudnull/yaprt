@@ -19,10 +19,10 @@ import os
 __author__ = "Kevin Carter"
 __contact__ = "Kevin Carter"
 __email__ = "kevin.carter@rackspace.com"
-__copyright__ = "2014 All Rights Reserved"
+__copyright__ = "2015 All Rights Reserved"
 __license__ = "Apache2"
-__date__ = "2014-12-25"
-__version__ = "0.3.6"
+__date__ = "2015-07-20"
+__version__ = "0.3.7"
 __status__ = "Development Status :: 5 - Production/Stable"
 __appname__ = "yaprt"
 __description__ = 'Repository builder for python source code'

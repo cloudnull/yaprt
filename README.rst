@@ -90,6 +90,19 @@ Yaprt can also use ref spec commits from things like gerrit and can chain multip
 This entry will base all commits at the point in time of the first refs change with the other comma delimited changes as a cherry-pick on top. This will create a single "patched" branch which will be noted within the repo build report as items that have been patched via yaprt. Be aware that when doing multiple patches one on-top of one another the pick strategy is to always use the first commit in the list as the base with everything else picked on top of it. This is done using the following git pick process ``git cherry-pick -x FETCH_HEAD``. If there is an error in picking the commits, the process will halt resulting in log output regarding what's broken and why.
 
 
+Telling yaprt to ignore requirement indexing
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Yaprt can be told to ignore requirement indexing by simply adding the ``yaprtignorerequirements=true`` fragment to the online URL for the repo.
+
+.. code-block:: shell
+
+    git+https://github.com/openstack/tempest@352082ec9a6847727aa3eb79d3a8d9008cea54d4#yaprtignorerequirements=true
+
+
+While this will build the wheel for the given package it will not index and enforce the package requirements onto the rest of the items being built.
+
+
 Building the wheels
 -------------------
 
