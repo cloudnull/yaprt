@@ -629,10 +629,24 @@ class WheelBuilder(utils.RepoBaseClass):
                 if not isinstance(repo_branch, dict):
                     continue
                 elif 'requirements' in repo_branch:
-                    for key, value in repo_branch['requirements'].items():
-                        self.requirements.extend(
-                            [i.lower() for i in value]
-                        )
+                    for value in repo_branch['requirements'].values():
+                        # added support for sanitized requirements. A
+                        #  requirement file could have a "-" or an "_" however
+                        #  these are equal as far pip is concerned. So all
+                        #  requirement items are sanitized to simply be a "-".
+                        sanitized_values = list()
+                        for item in value:
+                            req_item = item.split(';', 1)
+                            if len(req_item) > 1:
+                                req_item[0] = req_item[0].lower()
+                                req_item[0] = req_item[0].replace('_', '-')
+                                req = ';'.join(req_item)
+                            else:
+                                req = req_item[0].lower().replace('_', '-')
+                            self.log.debug('Sanitized requirement [ %s ]', req)
+                            sanitized_values.append(req)
+                        else:
+                            self.requirements.extend(sanitized_values)
         else:
             self.requirements = self.sort_requirements()
 
