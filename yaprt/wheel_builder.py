@@ -436,10 +436,7 @@ class WheelBuilder(utils.RepoBaseClass):
         vlv = version.LooseVersion
         for vd in VERSION_DESCRIPTORS:
             # Conditionally skip the base excludes.
-            base_excludes = any(
-                [vd == '~=', vd == '==', vd == '!=', vd == anchor]
-            )
-            if (vds[vd] and base_excludes) or isinstance(vds[vd], list):
+            if any([vd == '~=', vd == '==', vd == '!=', vd == anchor]):
                 continue
             else:
                 # Set the version value to a string.
@@ -542,34 +539,40 @@ class WheelBuilder(utils.RepoBaseClass):
                         break
 
             LOG.debug(
-                'Package: "%s", Version Descriptors: "%s"', pkg_name, vds
+                'Package: "%s", Raw Version Descriptors: "%s"', pkg_name, vds
             )
 
             for key, value in vds.items():
                 value = list(set(value))
-                if value and (key != '!=' or key != '~='):
-                    if [i for i in ['>=', '>'] if key == i]:
-                        vds[key] = self.version_compare(
-                            versions=value,
-                            duplicate_handling='max'
-                        )
+                if value:
+                    if key == '!=':
+                        vds[key] = sorted(value, reverse=True)
                     else:
-                        vds[key] = self.version_compare(
-                            versions=value,
-                            duplicate_handling='min'
+                        max_values = any(
+                            [key == '>=', key == '>', key == '~=', key == '==']
                         )
-                elif value and key == '!=':
-                    vds[key] = self.version_compare(
-                        versions=value,
-                        duplicate_handling='None'  # Set `str` to force reverse
-                    )
+                        if max_values:
+                            vds[key] = self.version_compare(
+                                versions=value,
+                                duplicate_handling='max'
+                            )
+                        else:
+                            vds[key] = self.version_compare(
+                                versions=value,
+                                duplicate_handling='min'
+                            )
                 else:
                     vds[key] = list()
+
+            LOG.debug(
+                'Package: "%s", Compared Version Descriptors: "%s"',
+                pkg_name, vds
+            )
 
             vds = self._version_sanity_check(pkg_name=pkg_name, vds=vds)
             LOG.debug(
                 'Sanitized versions for package: "%s", Version'
-                ' Descriptors: %s', pkg_name, vds.values()
+                ' Descriptors: %s', pkg_name, vds
             )
             if '==' in vds and vds['==']:
                 packages.append('%s==%s' % (pkg_name, vds['==']))
