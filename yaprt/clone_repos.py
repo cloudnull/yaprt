@@ -95,6 +95,12 @@ class CloneGitRepos(utils.RepoBaseClass):
         # Fetch all existing remotes first.
         self._run_command(command=['git', 'fetch', '--all'])
 
+        # Ensure that our working directory is clean
+        self._run_command(
+            command=['git', 'clean', '-f', '-d'],
+            skip_failure=True
+        )
+
         # Ensure we have our yaprt staging point within the repo
         self._run_command(
             command=['git', 'checkout', '-B', 'yaprt-integration'],

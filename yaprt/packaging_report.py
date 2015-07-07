@@ -106,18 +106,26 @@ class GitRepoProcess(utils.RepoBaseClass):
         else:
             repo = requirement_url
 
+        self.process_repo(repo=self.define_new_repo(repo=repo))
+
+    def define_new_repo(self, repo):
+        """From a repo entry return a dict object with its data.
+
+        :param repo: repository string
+        :type repo: ``str``
+        :returns: ``dict``
+        """
         name, branch, plugin_path, url, o_data = utils.git_pip_link_parse(repo)
         if plugin_path:
             name = '%s_plugin_pkg_%s' % (name, os.path.basename(plugin_path))
         # Process the new requirement item
-        _new_repo = {
+        return {
             'name': name,
             'branch': branch,
             'plugin_path': plugin_path,
             'git_url': url,
             'original_data': o_data
         }
-        self.process_repo(repo=_new_repo)
 
     def _process_repo_requirements(self, repo_data, base_report_data):
         """Parse and populate requirements from within branches.
@@ -179,14 +187,20 @@ class GitRepoProcess(utils.RepoBaseClass):
                     for item in _file_requirements:
                         requirement = item.split('#')[0].strip()
                         if requirement.startswith('-e'):
-                            # If the requirement item is a "-e ." skip.
-                            if requirement.endswith('.'):
+                            if requirement.endswith('.'):  # skip if "-e ."
                                 continue
-
-                            self._process_sub_plugin(
-                                requirement=requirement,
-                                repo_data=repo_data
-                            )
+                            elif 'git+' in item:
+                                repo_str = item.split('-e')[-1].strip()
+                                self.process_repo(
+                                    repo=self.define_new_repo(
+                                        repo=repo_str
+                                    )
+                                )
+                            else:
+                                self._process_sub_plugin(
+                                    requirement=requirement,
+                                    repo_data=repo_data
+                                )
                         else:
                             _requirements.append(requirement)
 

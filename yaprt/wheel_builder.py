@@ -170,13 +170,21 @@ class WheelBuilder(utils.RepoBaseClass):
         :type requirement: ``str``
         :return: ``tuple``
         """
+        check_addon_markers = requirement.split(';')
+        if len(check_addon_markers) > 1:
+            markers = check_addon_markers[1]
+            requirement = check_addon_markers[0]
+        else:
+            markers = None
+
         name = re.split(r'%s\s*' % VERSION_DESCRIPTORS, requirement)[0]
         versions = requirement.split(name)
+
         if len(versions) < 1:
             versions = list()
         else:
             versions = versions[-1].split(',')
-        return name, versions
+        return name, versions, markers
 
     @staticmethod
     def _copy_file(dst_file, src_file):
@@ -484,21 +492,42 @@ class WheelBuilder(utils.RepoBaseClass):
         # Create the base requirement dictionary.
         _requirements = dict()
         for requirement in requirements_list:
-            name, versions = self._requirement_name(requirement)
+            name, versions, markers = self._requirement_name(requirement)
             if name in _requirements:
-                req = _requirements[name]
+                req_entry = _requirements[name]
             else:
-                req = _requirements[name] = list()
-            req.extend(versions)
+                req_entry = _requirements[name] = dict()
+
+            # Set the versions
+            if 'versions' in req_entry:
+                req_versions = req_entry['versions']
+            else:
+                req_versions = req_entry['versions'] = list()
+            req_versions.extend(versions)
+            LOG.debug(
+                'Found requirements for package "%s": %s', name, req_versions
+            )
+
+            # If any markers are defined load sort and set them
+            if 'markers' in req_entry:
+                req_markers = req_entry['markers']
+            else:
+                req_markers = req_entry['markers'] = list()
+
+            if markers:
+                for marker in markers.split(' or '):
+                    req_markers.append(marker.strip().replace(' ', ''))
+
+                LOG.debug(
+                    'Found requirement markers for package "%s" with'
+                    ' sanitized markers: "%s" original markers: "%s"',
+                    name, req_markers, markers
+                )
 
         # Begin sorting the packages.
         packages = list()
-
-        for pkg_name, versions in _requirements.items():
-            LOG.debug(
-                'Found requirements for package "%s": %s', pkg_name,
-                versions
-            )
+        for pkg_name, items in _requirements.items():
+            versions = items['versions']
             # Set the list of versions but convert it back to a list for use
             # in a deque.
             versions = list(set(versions))
@@ -562,6 +591,19 @@ class WheelBuilder(utils.RepoBaseClass):
                         )
                     else:
                         build_package = pkg_name
+
+                    if items['markers']:
+                        # String transform all markers and set the list
+                        set_markers = set(
+                            sorted(
+                                ['%s' % i for i in set(items['markers'])]
+                            )
+                        )
+                        build_package = '%s;%s' % (
+                            build_package,
+                            ' or '.join(set_markers)
+                        )
+
                     # Append the built package
                     LOG.info('Built package: "%s"', build_package)
                     packages.append(build_package)
