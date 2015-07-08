@@ -108,7 +108,8 @@ class GitRepoProcess(utils.RepoBaseClass):
 
         self.process_repo(repo=self.define_new_repo(repo=repo))
 
-    def define_new_repo(self, repo):
+    @staticmethod
+    def define_new_repo(repo):
         """From a repo entry return a dict object with its data.
 
         :param repo: repository string
@@ -126,6 +127,217 @@ class GitRepoProcess(utils.RepoBaseClass):
             'git_url': url,
             'original_data': o_data
         }
+
+    def _branch_data(self, repo_data, base_report_data, repo_path):
+        """Return branch data.
+
+        :param repo_data: Repository data
+        :type repo_data: ``dict``
+        :param base_report_data: Base entry for the report
+        :type base_report_data: ``dict``
+        :param repo_path: Path to repo
+        :type repo_path: ``str``
+        :returns:``tuple``
+        """
+        LOG.info(
+            'Discovered branch "%s" for repo "%s"',
+            repo_data['branch'],
+            repo_data['name']
+        )
+        git_branches, int_branch = self.split_git_branches(
+            git_branch=repo_data['branch']
+        )
+        patched = False
+        if len(git_branches) > 1 or 'refs/changes' in repo_data['branch']:
+            repo_data['branch'] = int_branch
+            patched = True
+
+        self._run_command(command=['git', 'checkout', repo_data['branch']])
+        branch_data = base_report_data[repo_data['branch']] = dict()
+        branch_reqs = branch_data['requirements'] = dict()
+        # Record the items that make up a patched branch
+        if patched:
+            branch_data['patched_from'] = git_branches
+
+        setup_file_path = os.path.join(repo_path, 'setup.py')
+        egg_data_created = False
+        if os.path.isfile(setup_file_path):
+            # generate egg info, skip it if this raises an error
+            egg_data_created = self._run_command(
+                skip_failure=True,
+                command=['python', 'setup.py', 'egg_info']
+            )
+            branch_data['pip_install_url'] = repo_data['original_data']
+
+        return branch_reqs, egg_data_created
+
+    def _process_dependency_links(self, dependency_link_files):
+        """Process all dependency links found.
+
+        :param dependency_link_files: Files that contain requirements that are
+                                      external
+        :type dependency_link_files: ``list``
+        """
+        for dependency_file in dependency_link_files:
+            with open(dependency_file, 'r') as f:
+                dependencies = [
+                    i.strip() for i in f.readlines() if i.strip()
+                ]
+
+            for dependency in dependencies:
+                self.process_repo(
+                    repo=self.define_new_repo(
+                        repo=dependency
+                    )
+                )
+
+    def _get_requirement_files(self, repo_data, repo_path, egg_data_created):
+        """Return all requirement files.
+
+        :param repo_data: Repository data
+        :type repo_data: ``dict``
+        :param egg_data_created: Test if egg data was created
+        :type egg_data_created: ``bol``
+        :param repo_path: Path to repo
+        :type repo_path: ``str``
+        :returns:``list``
+        """
+        if 'yaprtignorerequirements=true' in repo_data['original_data']:
+            return list()
+
+        requirement_files = list()
+        if egg_data_created:
+            dependency_link_files = list()
+            for i, _, _ in os.walk(repo_path):
+                if 'egg-info' in i:
+                    req_file = os.path.join(i, 'requires.txt')
+                    if os.path.isfile(req_file):
+                        LOG.info('Loaded requirement file: %s', req_file)
+                        requirement_files.append(req_file)
+                    dep_file = os.path.join(i, 'dependency_links.txt')
+                    if os.path.isfile(dep_file):
+                        LOG.info('Loaded dependency file: %s', dep_file)
+                        dependency_link_files.append(dep_file)
+            else:
+                self._process_dependency_links(
+                    dependency_link_files=dependency_link_files
+                )
+
+        # Add all local requirement txt files if they're found
+        for i in yaprt.REQUIREMENTS_FILE_TYPES:
+            requirement_file = os.path.join(repo_path, i)
+            if os.path.isfile(requirement_file):
+                requirement_files.append(requirement_file)
+        else:
+            return requirement_files
+
+    def _get_sanitized_requirements(self, requirement_files):
+        """Return sanitized requirements.
+
+        :param requirement_files: list of requirement files.
+        :type requirement_files: ``list``
+        :returns: ``list``
+        """
+        LOG.info('Loaded requirement files: %s', requirement_files)
+        base_sections = dict()
+        for requirement_file in requirement_files:
+            with open(requirement_file, 'r') as f:
+                new_sections = self._get_requirement_sections(
+                    sanitized_requirements=[
+                        i.split('#')[0].strip() for i in f.readlines()
+                        if not i.startswith('#')
+                        if i.strip()
+                    ]
+                )
+                utils.merge_dict(
+                    base_items=base_sections,
+                    new_items=new_sections
+                )
+        else:
+            return base_sections
+
+
+    @staticmethod
+    def _get_requirement_sections(sanitized_requirements):
+        """Return requirement sections.
+
+        :param sanitized_requirements: list of requirements that have been
+                                       sanitized.
+        :type sanitized_requirements: ``list``
+        :returns: ``dict``
+        """
+        sections = dict()
+        new_sec = sections['default'] = list()
+        for req in sanitized_requirements:
+            dirived_section_check = req.split(';')
+            if len(dirived_section_check) > 1:
+                dirived_section_name = ':%s' % dirived_section_check[-1]
+                # A marker could have an "or" in it, which means that the
+                #  package is installable in multiple contexts as such this
+                #  will load the requirement into multiple sections if found.
+                for marker in dirived_section_name.split(' or '):
+                    marker = marker.strip().replace(' ', '')
+                    dirived_section = utils.return_list(
+                        dict_obj=sections,
+                        key=marker
+                    )
+                    dirived_section.append(dirived_section_check[0])
+            elif req.startswith('['):
+                section_name = req.lstrip('[').rstrip(']')
+                new_sec = utils.return_list(
+                    dict_obj=sections,
+                    key=section_name
+                )
+            else:
+                new_sec.append(req)
+
+        for section, items in sections.items():
+            sections[section] = list(set(sorted(items)))
+        else:
+            LOG.info('Requirement Sections: %s', sections)
+            return sections
+
+    def _process_requirements(self, sections, repo_data, branch_reqs):
+        """Process all requirements.
+
+        :param sections: requirement dict with list of requirements.
+        :type sections: ``dict``
+        :param repo_data All repo data in dict format.
+        :type repo_data: ``dict``
+        :param branch_reqs: specific requirements based on sections.
+        :type branch_reqs: ``dict``
+        """
+        for section, requirements in sections.items():
+            requirements = set(requirements)
+            LOG.debug('Sorted requirements: %s', requirements)
+            normal_requirements = list()
+            for requirement in requirements:
+                # If the requirement file has a -e item within it treat
+                #  it like a local subdirectory plugin and process it.
+                LOG.debug('Requirement item: "%s"', requirement)
+                if not requirement.startswith('-e'):
+                    normal_requirements.append(requirement)
+                else:
+                    repo_str = requirement.split('-e')[-1]
+                    repo_str = repo_str.split('#')[0].strip()
+                    if repo_str.endswith('.'):  # skip if "-e ."
+                        LOG.info('Skipping "-e ." value: %s', repo_str)
+                    elif 'git+' in repo_str:
+                        LOG.info('Git dependency link: %s', repo_str)
+                        self.process_repo(
+                            repo=self.define_new_repo(
+                                repo=repo_str
+                            )
+                        )
+                    else:
+                        LOG.info('Subdirectory plugin: %s', repo_str)
+                        self._process_sub_plugin(
+                            requirement=repo_str,
+                            repo_data=repo_data
+                        )
+            else:
+                LOG.debug('Found requirements: %s', normal_requirements)
+                branch_reqs[section] = normal_requirements
 
     def _process_repo_requirements(self, repo_data, base_report_data):
         """Parse and populate requirements from within branches.
@@ -147,76 +359,29 @@ class GitRepoProcess(utils.RepoBaseClass):
         if repo_data['plugin_path']:
             repo_path = os.path.join(repo_path, repo_data['plugin_path'])
 
+        LOG.info('Repo path "%s"', repo_path)
         with utils.ChangeDir(repo_path):
-            LOG.debug(
-                'Discovered branch "%s" for repo "%s"',
-                repo_data['branch'],
-                repo_data['name']
+            branch_reqs, egg_data_created = self._branch_data(
+                repo_data=repo_data,
+                base_report_data=base_report_data,
+                repo_path=repo_path
             )
 
-            git_branches, int_branch = self.split_git_branches(
-                git_branch=repo_data['branch']
+            requirement_files = self._get_requirement_files(
+                repo_data=repo_data,
+                repo_path=repo_path,
+                egg_data_created=egg_data_created
             )
-            patched_from = None
-            if len(git_branches) > 1 or 'refs/changes' in repo_data['branch']:
-                repo_data['branch'] = int_branch
-                patched_from = True
 
-            self._run_command(command=['git', 'checkout', repo_data['branch']])
-            branch_data = base_report_data[repo_data['branch']] = dict()
-            # Record the items that make up a patched branch
-            if patched_from:
-                branch_data['patched_from'] = git_branches
-            branch_reqs = branch_data['requirements'] = dict()
+            sections = self._get_sanitized_requirements(
+                requirement_files=requirement_files
+            )
 
-            if 'yaprtignorerequirements=true' in repo_data['original_data']:
-                requirement_files = list()
-            else:
-                requirement_files = yaprt.REQUIREMENTS_FILE_TYPES
-
-            for type_name, file_name in requirement_files:
-                file_path = os.path.join(repo_path, file_name)
-                if os.path.isfile(file_path):
-                    repo_data['file'] = file_name
-                    with open(file_path, 'r') as f:
-                        _file_requirements = f.readlines()
-
-                    # If the requirement file has a -e item within it treat
-                    #  it like a local subdirectory plugin and process it.
-                    _requirements = list()
-                    for item in _file_requirements:
-                        requirement = item.split('#')[0].strip()
-                        if requirement.startswith('-e'):
-                            if requirement.endswith('.'):  # skip if "-e ."
-                                continue
-                            elif 'git+' in item:
-                                repo_str = item.split('-e')[-1].strip()
-                                self.process_repo(
-                                    repo=self.define_new_repo(
-                                        repo=repo_str
-                                    )
-                                )
-                            else:
-                                self._process_sub_plugin(
-                                    requirement=requirement,
-                                    repo_data=repo_data
-                                )
-                        else:
-                            _requirements.append(requirement)
-
-                    _requirements = [
-                        i.split('#')[0].strip() for i in _requirements
-                        if not i.startswith('#')
-                        if i.strip()
-                    ]
-
-                    LOG.debug('Found requirements: %s', _requirements)
-                    if _requirements:
-                        branch_reqs[type_name] = sorted(_requirements)
-
-            setup_file_path = os.path.join(repo_path, 'setup.py')
-            if os.path.isfile(setup_file_path):
-                branch_data['pip_install_url'] = repo_data['original_data']
+            self._process_requirements(
+                sections=sections,
+                repo_data=repo_data,
+                branch_reqs=branch_reqs
+            )
 
     def _process_repo(self, repo):
         """Parse a given repo and populate the requirements dictionary.
@@ -252,7 +417,7 @@ class GitRepoProcess(utils.RepoBaseClass):
         branches = pkgs['branches'] = dict()
         _master = branches['_master_'] = dict()
         _requirements = _master['requirements'] = dict()
-        _requirements['base_requirements'] = packages
+        _requirements['default'] = list(sorted(set(packages)))
 
     def process_repo(self, repo):
         """Process a given repository.

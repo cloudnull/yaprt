@@ -375,6 +375,53 @@ class _BaseException(Exception):
         LOG.error(self.message)
 
 
+def merge_dict(base_items, new_items):
+    """Recursively merge new_items into some base_items.
+
+    :param base_items: ``dict``
+    :param new_items: ``dict``
+    :return dictionary:
+    """
+    for key, value in new_items.items():
+        if isinstance(value, dict):
+            base_items[key] = merge_dict(
+                base_items=base_items.get(key, dict()),
+                new_items=value
+            )
+        elif isinstance(value, list):
+            list_value = base_items.get(key, list())
+            list_value.extend(value)
+        else:
+            base_items[key] = new_items[key]
+
+    return base_items
+
+
+def dmerge(a, b):
+    for k, v in b.items():
+        if isinstance(v, dict) and k in a:
+            dmerge(a[k], v)
+        else:
+            a[k] = v
+
+
+
+def return_list(dict_obj, key):
+    """Given a ``dict`` check for a key and return it.
+
+    :param key: Key entry to look for
+    :type key: ``str``
+    :param dict_obj: Dictionary to search through
+    :type dict_obj: ``dict``
+    :returns: ``list``
+    """
+    if key in dict_obj:
+        return dict_obj[key]
+    else:
+        dict_obj[key] = list()
+        return dict_obj[key]
+
+
 class AError(_BaseException):
     """An error has occurred."""
 
@@ -408,6 +455,7 @@ class RepoBaseClass(object):
                 'Command failed but the failure was skipped. Command Data:'
                 ' [ %s ], Success: [ %s ]', data, success
             )
+        return success
 
     @staticmethod
     def split_git_branches(git_branch):

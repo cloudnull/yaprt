@@ -15,7 +15,6 @@
 # (c) 2015, Kevin Carter <kevin.carter@rackspace.com>
 
 import collections
-from distutils import version
 import os
 import re
 import tempfile
@@ -23,8 +22,9 @@ import urlparse
 
 from cloudlib import logger
 
-from yaprt import utils
+from packaging import specifiers
 
+from yaprt import utils
 
 LOG = logger.getLogger('repo_builder')
 VERSION_DESCRIPTORS = ['>=', '<=', '>', '<', '==', '~=', '!=']
@@ -51,7 +51,7 @@ def build_wheels(args):
         # Build a given set of wheels as hard requirements.
         wb.build_wheels(
             packages=wb.sort_requirements(
-                requirements_list=args['build_packages']
+                requirements_list={'default': args['build_packages']}
             )
         )
         wb.requirements.extend(args['build_packages'])
@@ -112,17 +112,17 @@ def build_wheels(args):
 class WheelBuilder(utils.RepoBaseClass):
     """Build python wheel files.
 
-    Example options dict
-        >>> user_args = {
-        ...     'build_output': '/tmp/output_place',
-        ...     'build_dir': '/tmp/build_place',
-        ...     'pip_no_deps': True,
-        ...     'pip_no_index': True,
-        ...     'link_dir': '/var/www/repo',
-        ...     'debug': True,
-        ...     'duplicate_handling': 'max',
-        ...     'storage_pool': '/var/www/repo/storage'
-        ... }
+    Example options dict:
+    >>> user_args = {
+    ...     'build_output': '/tmp/output_place',
+    ...     'build_dir': '/tmp/build_place',
+    ...     'pip_no_deps': True,
+    ...     'pip_no_index': True,
+    ...     'link_dir': '/var/www/repo',
+    ...     'debug': True,
+    ...     'duplicate_handling': 'max',
+    ...     'storage_pool': '/var/www/repo/storage'
+    ... }
     """
     def __init__(self, user_args):
         """Build python wheels based on a report or items within a report.
@@ -137,7 +137,7 @@ class WheelBuilder(utils.RepoBaseClass):
         )
 
         self.branches = list()
-        self.requirements = list()
+        self.requirements = dict()
         self.releases = list()
 
     @staticmethod
@@ -179,11 +179,11 @@ class WheelBuilder(utils.RepoBaseClass):
 
         name = re.split(r'%s\s*' % VERSION_DESCRIPTORS, requirement)[0]
         versions = requirement.split(name)
-
         if len(versions) < 1:
             versions = list()
         else:
             versions = versions[-1].split(',')
+
         return name, versions, markers
 
     @staticmethod
@@ -327,69 +327,17 @@ class WheelBuilder(utils.RepoBaseClass):
             branch = int_branch
 
         package_name = utils.git_pip_link_parse(repo=package)[0]
-        repo_location = os.path.join(
-            self.args['git_repo_path'], package_name
-        )
+        repo_location = os.path.join(self.args['git_repo_path'], package_name)
         if extra_data and 'subdirectory' in extra_data:
             package_subdir = extra_data.split('subdirectory=')[1].split('&')[0]
-            git_package_location = os.path.join(
-                repo_location,
-                package_subdir
-            )
-        else:
-            git_package_location = repo_location
-
-        # Check that setuptools is available
-        setup_py = 'setup.py'
-        setup_file = os.path.join(git_package_location, setup_py)
-        remove_extra_setup = False
-        if os.path.isfile(setup_file):
-            with open(setup_file, 'r') as f:
-                setup_file_contents = [
-                    i for i in f.readlines() if i if not i.startswith('#')
-                ]
-                for i in setup_file_contents:
-                    if 'setuptools' in i:
-                        break
-                else:
-                    for line in setup_file_contents:
-                        if line.startswith('import'):
-                            pass
-                        elif line.startswith('from'):
-                            pass
-                        else:
-                            index = setup_file_contents.index(line)
-                            break
-                    else:
-                        index = 0
-
-                    setup_file_contents.insert(index, 'import setuptools')
-                    setup_py = '%s2' % setup_file
-                    remove_extra_setup = True
-                    with open(setup_py, 'w') as sf:
-                        sf.writelines(setup_file_contents)
-        try:
-            with utils.ChangeDir(git_package_location):
-                # Checkout the given branch
+            repo_location = os.path.join(repo_location, package_subdir)
+            with utils.ChangeDir(repo_location):
+                # Ensure that the plugin is on the correct branch
                 checkout_command = ['git', 'checkout', "'%s'" % branch]
                 self._run_command(command=checkout_command)
 
-                # Build the wheel using `python setup.py`
-                build_command = [
-                    'python',
-                    setup_py,
-                    'bdist_wheel',
-                    '--dist-dir',
-                    self.args['build_output'],
-                    '--bdist-dir',
-                    self.args['build_dir']
-                ]
-                self._run_command(command=build_command)
-            LOG.debug('Build Success for: "%s"', package)
-        finally:
-            utils.remove_dirs(directory=self.args['build_dir'])
-            if remove_extra_setup:
-                os.remove(setup_py)
+        # Run the wheel build for a given repo on a box
+        self._pip_build_wheels(package=repo_location)
 
     @staticmethod
     def _get_sentinel(operators, vds):
@@ -468,49 +416,42 @@ class WheelBuilder(utils.RepoBaseClass):
 
         return vds
 
-    def sort_requirements(self, requirements_list=None):
+    def sort_requirements(self, requirements_items=None):
         """Return a sorted ``list`` of requirements.
 
-        :returns: ``list``
+        :param requirements_items: requirement items
+        :type requirements_items: ``dict``
+        :returns: ``dict``
         """
 
-        if not requirements_list:
-            requirements_list = self.requirements
-
-        # Set the incoming requirements list.
-        requirements_list = set(requirements_list)
+        if not requirements_items:
+            requirements_items = self.requirements
 
         # Check if version sanity checking is disabled.
         if self.args['disable_version_sanity']:
             LOG.warn('Version sanity checking has been disabled.')
             # If disabled return a sorted set list of requirements.
-            return sorted(requirements_list)
+            return dict(
+                [(k, sorted(v)) for k, v in requirements_items.items()]
+            )
 
         # Create the base requirement dictionary.
         _requirements = dict()
-        for requirement in requirements_list:
+        for requirement in requirements_items.values():
             name, versions, markers = self._requirement_name(requirement)
-            if name in _requirements:
-                req_entry = _requirements[name]
-            else:
-                req_entry = _requirements[name] = dict()
+            req_entry = utils.return_list(dict_obj=_requirements, key=name)
 
             # Set the versions
-            if 'versions' in req_entry:
-                req_versions = req_entry['versions']
-            else:
-                req_versions = req_entry['versions'] = list()
+            req_versions = utils.return_list(
+                dict_obj=req_entry, key='versions'
+            )
             req_versions.extend(versions)
             LOG.debug(
                 'Found requirements for package "%s": %s', name, req_versions
             )
 
             # If any markers are defined load sort and set them
-            if 'markers' in req_entry:
-                req_markers = req_entry['markers']
-            else:
-                req_markers = req_entry['markers'] = list()
-
+            req_markers = utils.return_list(dict_obj=req_entry, key='markers')
             if markers:
                 for marker in markers.split(' or '):
                     req_markers.append(marker.strip().replace(' ', ''))
@@ -549,7 +490,12 @@ class WheelBuilder(utils.RepoBaseClass):
                         vds[key] = sorted(value, reverse=True)
                     else:
                         max_values = any(
-                            [key == '>=', key == '>', key == '~=', key == '==']
+                            [
+                                key == '>=',
+                                key == '>',
+                                key == '~=',
+                                key == '=='
+                            ]
                         )
                         if max_values:
                             vds[key] = self.version_compare(
@@ -597,14 +543,9 @@ class WheelBuilder(utils.RepoBaseClass):
 
                     if items['markers']:
                         # String transform all markers and set the list
-                        set_markers = set(
-                            sorted(
-                                ['%s' % i for i in set(items['markers'])]
-                            )
-                        )
                         build_package = '%s;%s' % (
                             build_package,
-                            ' or '.join(set_markers)
+                            ' or '.join(sorted(set(items['markers'])))
                         )
 
                     # Append the built package
@@ -642,7 +583,7 @@ class WheelBuilder(utils.RepoBaseClass):
         name = utils.git_pip_link_parse(repo=release)[0]
         self._pop_items(
             found_repos=[
-                i for i in self.requirements
+                i for i in self.requirements.values()
                 if self._requirement_name(i)[0] == name
             ],
             list_items='requirements'
@@ -674,7 +615,8 @@ class WheelBuilder(utils.RepoBaseClass):
                 if not isinstance(repo_branch, dict):
                     continue
                 elif 'requirements' in repo_branch:
-                    for value in repo_branch['requirements'].values():
+                    requirements = repo_branch['requirements']
+                    for key, value in requirements.items():
                         # added support for sanitized requirements. A
                         #  requirement file could have a "-" or an "_" however
                         #  these are equal as far pip is concerned. So all
@@ -686,12 +628,20 @@ class WheelBuilder(utils.RepoBaseClass):
                                 req_item[0] = req_item[0].lower()
                                 req_item[0] = req_item[0].replace('_', '-')
                                 req = ';'.join(req_item)
+                                section = req_item[-1]
+                                if section in repo_branch['requirements']:
+                                    requirements[section].append(req_item[0])
+                                else:
+                                    requirements[section] = [req_item[0]]
                             else:
                                 req = req_item[0].lower().replace('_', '-')
-                            self.log.debug('Sanitized requirement [ %s ]', req)
+                            LOG.debug('Sanitized requirement [ %s ]', req)
                             sanitized_values.append(req)
                         else:
-                            self.requirements.extend(sanitized_values)
+                            if key not in self.requirements:
+                                self.requirements[key] = list()
+
+                            self.requirements[key].extend(sanitized_values)
         else:
             self.requirements = self.sort_requirements()
 

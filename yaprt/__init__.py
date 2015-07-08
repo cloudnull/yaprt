@@ -21,8 +21,8 @@ __contact__ = "Kevin Carter"
 __email__ = "kevin.carter@rackspace.com"
 __copyright__ = "2015 All Rights Reserved"
 __license__ = "Apache2"
-__date__ = "2015-07-07"
-__version__ = "0.4.0"
+__date__ = "2015-07-08"
+__version__ = "0.5.0"
 __status__ = "Development Status :: 5 - Production/Stable"
 __appname__ = "yaprt"
 __description__ = 'Repository builder for python source code'
@@ -34,13 +34,13 @@ __url__ = 'https://github.com/cloudnull/yaprt.git'
 # (TYPE, 'file name'). The type should directly correspond to a dict in
 # PYTHON_PACKAGES
 REQUIREMENTS_FILE_TYPES = [
-    ('base_requirements', 'requirements.txt'),
-    ('base_requirements', 'global-requirements.txt'),
-    ('base_requirements', 'global_requirements.txt'),
-    ('test_requirements', 'test-requirements.txt'),
-    ('test_requirements', 'test_requirements.txt'),
-    ('dev_requirements', 'dev-requirements.txt'),
-    ('dev_requirements', 'dev_requirements.txt')
+    'requirements.txt',
+    'global-requirements.txt',
+    'global_requirements.txt',
+    'test-requirements.txt',
+    'test_requirements.txt',
+    'dev-requirements.txt',
+    'dev_requirements.txt'
 ]
 
 # This is used if no global gitconfig file is found for the executing user.
