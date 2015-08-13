@@ -805,7 +805,7 @@ class WheelBuilder(utils.RepoBaseClass):
                     os.path.join(self.args['link_dir'], wheel_name)
                 )
 
-    def _package_clean(self, package):
+    def _package_clean(self, package, files):
         """Remove links for a given package name if found.
 
         This method will index the provided link directory and remove any items
@@ -822,11 +822,12 @@ class WheelBuilder(utils.RepoBaseClass):
 
         name = name.replace('-', '_').lower()
         LOG.debug('Checking for package name [ %s ] in link directory.', name)
-        for file_name in utils.get_file_names(self.args['link_dir']):
+        for file_name in files:
             base_file_name = os.path.basename(file_name).split('-')[0].lower()
             if name == base_file_name:
                 LOG.info('Removed link item from cleanup "%s"', file_name)
                 os.remove(file_name)
+                files.remove(file_name)
 
     def build_wheels(self, packages, clean_first=False, force_iterate=False):
         """Create python wheels from a list of packages.
@@ -845,8 +846,9 @@ class WheelBuilder(utils.RepoBaseClass):
         """
         try:
             if clean_first and self.args['link_dir']:
+                files = utils.get_file_names(self.args['link_dir'])
                 for package in packages:
-                    self._package_clean(package=package)
+                    self._package_clean(package=package, files=files)
 
             if self.args['pip_bulk_operation'] and not force_iterate:
                 req_file = os.path.join(
