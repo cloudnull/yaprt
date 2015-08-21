@@ -71,7 +71,7 @@ def create_html_indexes(args):
             index = html.HTML('html')
             head = index.head()
             head.title(_title)
-            body = index.body()
+            body = index.body(newlines=True)
             body.h1(_title)
 
             with utils.ChangeDir(fpath):
