@@ -195,6 +195,7 @@ ARGUMENTS_DICT = {
                             'pip_extra_index',
                             'pip_no_deps',
                             'pip_no_index',
+                            'pip_pre',
                             'pip_extra_link_dirs'
                         ]
                     }
@@ -271,6 +272,14 @@ ARGUMENTS_DICT = {
                     ],
                     'help': 'Ignore package index (only looking at'
                             ' --link-dir URLs instead).',
+                    'action': 'store_true',
+                    'default': False
+                },
+                'pip_pre': {
+                    'commands': [
+                        '--pip-pre'
+                    ],
+                    'help': 'Include pre-release and development versions.',
                     'action': 'store_true',
                     'default': False
                 },

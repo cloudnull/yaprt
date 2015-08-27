@@ -118,6 +118,7 @@ class WheelBuilder(utils.RepoBaseClass):
         ...     'build_dir': '/tmp/build_place',
         ...     'pip_no_deps': True,
         ...     'pip_no_index': True,
+        ...     'pip_pre': False,
         ...     'link_dir': '/var/www/repo',
         ...     'debug': True,
         ...     'duplicate_handling': 'max',
@@ -231,6 +232,9 @@ class WheelBuilder(utils.RepoBaseClass):
             self.args['build_output'],
             '--allow-all-external'
         ]
+
+        if self.args['pip_pre']:
+            command.append('--pre')
 
         if not no_links:
             if self.args['pip_extra_link_dirs']:
