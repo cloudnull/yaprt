@@ -862,7 +862,9 @@ class WheelBuilder(utils.RepoBaseClass):
                 LOG.info('Requirement file being written: "%s"', req_file)
                 self.shell_cmds.mkdir_p(path=os.path.dirname(req_file))
                 with open(req_file, 'wb') as f:
-                    f.writelines(['%s\n' % i for i in packages])
+                    f.writelines(
+                        ['%s\n' % i.encode('UTF-8') for i in packages]
+                    )
 
                 self._pip_build_wheels(packages_file=req_file)
             else:
