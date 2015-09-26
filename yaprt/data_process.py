@@ -60,8 +60,8 @@ def processing_report(args):
     for item in utils.read_report(args=args).values():
         branches = item.get('branches')
         for key, value in branches.items():
-            if 'original_data' in value:
-                git_repos.append(value['original_data'])
+            if 'original_data' == key:
+                git_repos.append(value)
 
     return git_repos
 
