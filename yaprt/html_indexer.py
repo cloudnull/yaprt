@@ -44,9 +44,8 @@ def return_hash(src_file):
         local_file=src_file,
         hash_type='md5'
     )
-    if not hash_sum:
-        raise utils.AError('hash failure on "%s"', src_file)
-    return base64.b64encode(hash_sum)
+    if hash_sum:
+        return base64.b64encode(hash_sum)
 
 
 def create_html_indexes(args):
@@ -91,13 +90,17 @@ def create_html_indexes(args):
                         continue
 
                     full_file_path = os.path.join(fpath, afile)
-                    body.a(
-                        os.path.basename(full_file_path).split('#')[0],
-                        href=os.path.relpath(full_file_path),
-                        rel="internal",
-                        md='md5:%s' % return_hash(full_file_path)
-                    )
-                    body.br()
+                    md5_hash = return_hash(full_file_path)
+                    if md5_hash:
+                        body.a(
+                            os.path.basename(full_file_path).split('#')[0],
+                            href=os.path.relpath(full_file_path),
+                            rel="internal",
+                            md='md5:%s' % md5_hash
+                        )
+                        body.br()
+                    else:
+                        os.remove(afile)
                 else:
                     index_file = os.path.join(fpath, 'index.html')
                     with open(index_file, 'wb') as f:
