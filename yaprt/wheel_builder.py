@@ -803,11 +803,12 @@ class WheelBuilder(utils.RepoBaseClass):
                         raise exp
 
             if not os.path.islink(link_path):
-                # Create the symlink
-                os.symlink(
-                    os.path.relpath(full_wheel_path),
-                    os.path.join(self.args['link_dir'], wheel_name)
-                )
+                if os.path.isfile(full_wheel_path):
+                    # Create the symlink
+                    os.symlink(
+                        os.path.relpath(full_wheel_path),
+                        os.path.join(self.args['link_dir'], wheel_name)
+                    )
 
     def _package_clean(self, package, files):
         """Remove links for a given package name if found.

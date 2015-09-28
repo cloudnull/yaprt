@@ -91,16 +91,20 @@ def create_html_indexes(args):
 
                     full_file_path = os.path.join(fpath, afile)
                     md5_hash = return_hash(full_file_path)
-                    if md5_hash:
-                        body.a(
-                            os.path.basename(full_file_path).split('#')[0],
-                            href=os.path.relpath(full_file_path),
-                            rel="internal",
-                            md='md5:%s' % md5_hash
-                        )
-                        body.br()
-                    else:
-                        os.remove(afile)
+                    try:
+                        if md5_hash:
+                            body.a(
+                                os.path.basename(full_file_path).split('#')[0],
+                                href=os.path.relpath(full_file_path),
+                                rel="internal",
+                                md='md5:%s' % md5_hash
+                            )
+                            body.br()
+                    # If anything bad happens in the link creation process LOG
+                    #  the exception and skip.
+                    except Exception as exp:
+                        LOG.warn(str(exp))
+                        pass
                 else:
                     index_file = os.path.join(fpath, 'index.html')
                     with open(index_file, 'wb') as f:
