@@ -733,18 +733,18 @@ class WheelBuilder(utils.RepoBaseClass):
 
     def _store_pool(self):
         """Create wheels within the storage pool directory."""
-        built_wheels = utils.get_file_names(
-            path=self.args['build_output']
-        )
+        built_wheels = utils.get_file_names(path=self.args['build_output'])
 
         # Iterate through the built wheels
         for built_wheel in built_wheels:
             _dst_wheel_file_name = os.path.basename(built_wheel)
             # Directory name is being "normalised"
-            dst_wheel_file = os.path.join(
-                self.args['storage_pool'],
-                _dst_wheel_file_name.split('-')[0].lower().replace('_', '-'),
-                _dst_wheel_file_name
+            dst_wheel_file = utils.get_abs_path(
+                file_name=os.path.join(
+                    self.args['storage_pool'],
+                    _dst_wheel_file_name.split('-')[0].lower().replace('_', '-'),
+                    _dst_wheel_file_name
+                )
             )
 
             # Create destination file
@@ -800,7 +800,7 @@ class WheelBuilder(utils.RepoBaseClass):
                     if exp.errno == 2:
                         pass
                     else:
-                        raise exp
+                        raise utils.AError(exp)
 
             if not os.path.islink(link_path):
                 if os.path.isfile(full_wheel_path):
