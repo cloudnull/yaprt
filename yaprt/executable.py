@@ -105,6 +105,10 @@ def preload_for_main():
         except OSError:
             pass
 
+    link_dir = args.get('link_dir')
+    if link_dir:
+        args['link_dir'] = os.path.abspath(os.path.expanduser(link_dir))
+
     # Load the logging.
     _logging = logger.LogSetup(debug_logging=args['debug'])
     log = _logging.default_logger(
