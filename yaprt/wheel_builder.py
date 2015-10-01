@@ -349,8 +349,10 @@ class WheelBuilder(utils.RepoBaseClass):
                 repo_location,
                 package_subdir
             )
+            subdirectory = True
         else:
             git_package_location = repo_location
+            subdirectory = False
 
         try:
             with utils.ChangeDir(git_package_location):
@@ -358,18 +360,74 @@ class WheelBuilder(utils.RepoBaseClass):
                 checkout_command = ['git', 'checkout', "'%s'" % branch]
                 self._run_command(command=checkout_command)
 
-            self._pip_build_wheels(
-                package=git_package_location,
-                no_links=True,
-                constraint_file=os.path.join(
-                    git_package_location,
-                    'constraints.txt'
+                # If there's a subdirectory run the build process using bdist
+                #  This is being done because pip will not build wheels when
+                #  the subdirectory syntax is used.
+                if subdirectory:
+                    setup_py, remove_extra_setup = self._setup_tools_check(
+                        git_package_location=git_package_location
+                    )
+                    # Build the wheel using `python setup.py`
+                    build_command = [
+                        'python',
+                        setup_py,
+                        'bdist_wheel',
+                        '--dist-dir',
+                        self.args['build_output'],
+                        '--bdist-dir',
+                        self.args['build_dir']
+                    ]
+                    self._run_command(command=build_command)
+                    if remove_extra_setup:
+                        os.remove(setup_py)
+
+            if not subdirectory:
+                self._pip_build_wheels(
+                    package=git_package_location,
+                    no_links=True,
+                    constraint_file=os.path.join(
+                        git_package_location,
+                        'constraints.txt'
+                    )
                 )
-            )
 
             LOG.debug('Build Success for: "%s"', package)
         finally:
             utils.remove_dirs(directory=self.args['build_dir'])
+
+    @staticmethod
+    def _setup_tools_check(git_package_location):
+        """Check that setuptools is available."""
+        setup_py = 'setup.py'
+        setup_file = os.path.join(git_package_location, setup_py)
+        remove_extra_setup = False
+        if os.path.isfile(setup_file):
+            with open(setup_file, 'r') as f:
+                setup_file_contents = [
+                    i for i in f.readlines() if i if not i.startswith('#')
+                ]
+                for i in setup_file_contents:
+                    if 'setuptools' in i:
+                        break
+                else:
+                    for line in setup_file_contents:
+                        if line.startswith('import'):
+                            pass
+                        elif line.startswith('from'):
+                            pass
+                        else:
+                            index = setup_file_contents.index(line)
+                            break
+                    else:
+                        index = 0
+
+                    setup_file_contents.insert(index, 'import setuptools')
+                    setup_py = '%s2' % setup_file
+                    remove_extra_setup = True
+                    with open(setup_py, 'w') as sf:
+                        sf.writelines(setup_file_contents)
+
+        return setup_py, remove_extra_setup
 
     @staticmethod
     def _get_sentinel(operators, vds):
