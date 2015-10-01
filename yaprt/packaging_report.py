@@ -117,7 +117,10 @@ class GitRepoProcess(utils.RepoBaseClass):
         """
         name, branch, plugin_path, url, o_data = utils.git_pip_link_parse(repo)
         if plugin_path:
-            name = '%s_plugin_pkg_%s' % (name, os.path.basename(plugin_path))
+            name = '%s_plugin_pkg_%s' % (
+                name.split('.git')[0],
+                os.path.basename(plugin_path)
+            )
         # Process the new requirement item
         return {
             'name': name,
