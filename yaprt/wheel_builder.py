@@ -199,7 +199,7 @@ class WheelBuilder(utils.RepoBaseClass):
         utils.copy_file(src=src_file, dst=dst_file)
 
     def _pip_build_wheels(self, package=None, packages_file=None,
-                          no_links=False, retry=False):
+                          no_links=False, retry=False, constraint_file=None):
         """Create a python wheel.
 
         The base command will timeout in 120 seconds and will create the wheels
@@ -222,6 +222,9 @@ class WheelBuilder(utils.RepoBaseClass):
         :type no_links: ``bol``
         :param retry: Enable retry mode.
         :type retry: ``bol``
+        :param constraint_file: Full path to a file containing project
+                                constraints for packages.
+        :type constraint_file: ``str``
         """
         command = [
             'pip',
@@ -232,6 +235,9 @@ class WheelBuilder(utils.RepoBaseClass):
             self.args['build_output'],
             '--allow-all-external'
         ]
+
+        if constraint_file and os.path.isfile(constraint_file):
+            command.extend(['--constraint', constraint_file])
 
         if self.args['pip_pre']:
             command.append('--pre')
@@ -316,7 +322,10 @@ class WheelBuilder(utils.RepoBaseClass):
         :param package: Name of a particular package to build.
         :type package: ``str``
         """
-        package_full_link = package.split('git+')[1]
+        try:
+            package_full_link = package.split('git+')[1]
+        except IndexError:
+            return self._pip_build_wheels(package=package)
 
         if '#' in package_full_link:
             package_link, extra_data = package_full_link.split('#')
@@ -343,57 +352,24 @@ class WheelBuilder(utils.RepoBaseClass):
         else:
             git_package_location = repo_location
 
-        # Check that setuptools is available
-        setup_py = 'setup.py'
-        setup_file = os.path.join(git_package_location, setup_py)
-        remove_extra_setup = False
-        if os.path.isfile(setup_file):
-            with open(setup_file, 'r') as f:
-                setup_file_contents = [
-                    i for i in f.readlines() if i if not i.startswith('#')
-                ]
-                for i in setup_file_contents:
-                    if 'setuptools' in i:
-                        break
-                else:
-                    for line in setup_file_contents:
-                        if line.startswith('import'):
-                            pass
-                        elif line.startswith('from'):
-                            pass
-                        else:
-                            index = setup_file_contents.index(line)
-                            break
-                    else:
-                        index = 0
-
-                    setup_file_contents.insert(index, 'import setuptools')
-                    setup_py = '%s2' % setup_file
-                    remove_extra_setup = True
-                    with open(setup_py, 'w') as sf:
-                        sf.writelines(setup_file_contents)
         try:
             with utils.ChangeDir(git_package_location):
                 # Checkout the given branch
                 checkout_command = ['git', 'checkout', "'%s'" % branch]
                 self._run_command(command=checkout_command)
 
-                # Build the wheel using `python setup.py`
-                build_command = [
-                    'python',
-                    setup_py,
-                    'bdist_wheel',
-                    '--dist-dir',
-                    self.args['build_output'],
-                    '--bdist-dir',
-                    self.args['build_dir']
-                ]
-                self._run_command(command=build_command)
+            self._pip_build_wheels(
+                package=git_package_location,
+                no_links=True,
+                constraint_file=os.path.join(
+                    git_package_location,
+                    'constraints.txt'
+                )
+            )
+
             LOG.debug('Build Success for: "%s"', package)
         finally:
             utils.remove_dirs(directory=self.args['build_dir'])
-            if remove_extra_setup:
-                os.remove(setup_py)
 
     @staticmethod
     def _get_sentinel(operators, vds):
@@ -648,6 +624,7 @@ class WheelBuilder(utils.RepoBaseClass):
             found_repos=[
                 i for i in self.requirements
                 if self._requirement_name(i)[0] == name
+                if self._requirement_name(i)[0] == name.split('.git')[0]
             ],
             list_items='requirements'
         )
@@ -663,6 +640,7 @@ class WheelBuilder(utils.RepoBaseClass):
             found_repos=[
                 i for i in self.branches
                 if utils.git_pip_link_parse(repo=i)[0] == name
+                if utils.git_pip_link_parse(repo=i)[0] == name.split('.git')[0]
             ],
             list_items='branches'
         )
@@ -821,7 +799,7 @@ class WheelBuilder(utils.RepoBaseClass):
         """
         # Set the name of the package from an expected type, git+ or string.
         if 'git+' in package:
-            name = utils.git_pip_link_parse(repo=package)[0]
+            name = utils.git_pip_link_parse(repo=package)[0].split('.git')[0]
         else:
             name = self._requirement_name(package)[0]
 
