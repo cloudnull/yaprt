@@ -358,16 +358,33 @@ class WheelBuilder(utils.RepoBaseClass):
                 checkout_command = ['git', 'checkout', "'%s'" % branch]
                 self._run_command(command=checkout_command)
 
-            self._pip_build_wheels(
-                package=git_package_location,
-                no_links=True,
-                constraint_file=os.path.join(
-                    git_package_location,
-                    'constraints.txt'
+            try:
+                LOG.debug('Build for: "%s"', package)
+                self._pip_build_wheels(
+                    package=git_package_location,
+                    no_links=True,
+                    constraint_file=os.path.join(
+                        git_package_location,
+                        'constraints.txt'
+                    )
                 )
-            )
-
-            LOG.debug('Build Success for: "%s"', package)
+            except SystemExit:
+                # Build the wheel using `python setup.py`
+                LOG.warn(
+                    'Running subdir package build for "%s" in fall back mode',
+                    package
+                )
+                build_command = [
+                    'python',
+                    'setup.py',
+                    'bdist_wheel',
+                    '--dist-dir',
+                    self.args['build_output'],
+                    '--bdist-dir',
+                    self.args['build_dir']
+                ]
+                with utils.ChangeDir(git_package_location):
+                    self._run_command(command=build_command)
         finally:
             utils.remove_dirs(directory=self.args['build_dir'])
 
