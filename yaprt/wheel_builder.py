@@ -726,6 +726,20 @@ class WheelBuilder(utils.RepoBaseClass):
         else:
             self.releases = sorted(list(set(self.releases)))
 
+    def _clean_packages(self, packages):
+        """Search and clean existing packages in link_dir directory."""
+        if self.args['link_dir']:
+            files = utils.get_file_names(self.args['link_dir'])
+
+            # Search for extra dependencies in built_wheels
+            built_wheels = utils.get_file_names(path=self.args['build_output'])
+            built_packages = (os.path.basename(x).split('-')[0] for x in built_wheels)
+            extra_deps = [x for x in built_packages if x not in packages]
+            _packages = packages + extra_deps
+
+            for package in _packages:
+                self._package_clean(package=package, files=files)
+
     def _store_pool(self):
         """Create wheels within the storage pool directory."""
         built_wheels = utils.get_file_names(path=self.args['build_output'])
@@ -845,11 +859,6 @@ class WheelBuilder(utils.RepoBaseClass):
         :type force_iterate: ``bol``
         """
         try:
-            if clean_first and self.args['link_dir']:
-                files = utils.get_file_names(self.args['link_dir'])
-                for package in packages:
-                    self._package_clean(package=package, files=files)
-
             if self.args['pip_bulk_operation'] and not force_iterate:
                 req_file = os.path.join(
                     self.args['link_dir'],
@@ -866,6 +875,8 @@ class WheelBuilder(utils.RepoBaseClass):
             else:
                 for package in packages:
                     self._setup_build_wheels(package=package)
+            if clean_first:
+                self._clean_packages(packages)
             self._store_pool()
         finally:
             utils.remove_dirs(directory=self.args['build_output'])
